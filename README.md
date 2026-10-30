@@ -57,8 +57,7 @@ pip install --no-index --no-deps wheels/faster_or_curvature-*.whl
   `orcut/_kernels.py`, and `orcut.curvature` returns the same values bit for bit (tested).
 * **1.0.0** is the solver used for every exact curvature in Micaletto and Nigrelli,
   *What Balanced Forman Curvature Certifies About Ollivier–Ricci Curvature*: its compiled kernels
-  (`orcut/_kernels.py`) are those of `curvature_transfer` v11, unchanged, so values and timings
-  reproduce that paper.
+  (`orcut/_kernels.py`) are those of `curvature_transfer`.
 
 ## Layout
 
