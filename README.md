@@ -1,6 +1,9 @@
 # faster-or-curvature
 
-[![Downloads](https://static.pepy.tech/badge/faster-or-curvature)](https://pepy.tech/project/faster-or-curvature)
+[![PyPI version](https://img.shields.io/pypi/v/faster-or-curvature.svg)](https://pypi.org/project/faster-or-curvature/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/faster-or-curvature.svg)](https://pypi.org/project/faster-or-curvature/)
+[![Downloads](https://static.pepy.tech/badge/faster-or-curvature/month)](https://pepy.tech/project/faster-or-curvature)
+[![License](https://img.shields.io/pypi/l/faster-or-curvature.svg)](https://pypi.org/project/faster-or-curvature/)
 
 Exact Ollivier–Ricci curvature of every edge of an unweighted graph, with one
 minimum cut per edge, in exact integer arithmetic and without a distance matrix.
@@ -75,3 +78,17 @@ pip install --no-index --no-deps wheels/faster_or_curvature-*.whl
 | `orcut/_reference.py` | independent oracle: full local distance matrix, three-level closure, recursive Dinic |
 | `orcut/api.py` | `curvature`, `ball_curvature`, `walk_curvature`, `affected_edges`, `exact` (1.0.0 API), thread control |
 | `tests/` | kernels against each other (bit for bit), against the oracle, and against linear programming |
+
+## Citation
+
+A formal paper is currently in preparation and will be available on arXiv soon. In the meantime, if you use this software in your research, please cite the repository:
+
+```bibtex
+@misc{faster-or-curvature,
+  author = {Giorgio Micaletto},
+  title = {faster-or-curvature: Exact Ollivier–Ricci curvature in exact integer arithmetic},
+  year = {2026},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{[https://github.com/GiorgioMB/faster-or-curvature](https://github.com/GiorgioMB/faster-or-curvature)}},
+}
