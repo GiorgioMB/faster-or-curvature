@@ -1,8 +1,7 @@
 # faster-or-curvature
 
 [![PyPI version](https://img.shields.io/pypi/v/faster-or-curvature.svg)](https://pypi.org/project/faster-or-curvature/)
-[![Python Versions](https://img.shields.io/pypi/pyversions/faster-or-curvature.svg)](https://pypi.org/project/faster-or-curvature/)
-[![Downloads](https://static.pepy.tech/badge/faster-or-curvature/month)](https://pepy.tech/project/faster-or-curvature)
+[![Downloads](https://img.shields.io/pepy/dt/faster-or-curvature)](https://pepy.tech/project/faster-or-curvature)
 [![License](https://img.shields.io/pypi/l/faster-or-curvature.svg)](https://pypi.org/project/faster-or-curvature/)
 
 Exact Ollivier–Ricci curvature of every edge of an unweighted graph, with one
