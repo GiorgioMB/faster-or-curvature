@@ -1,5 +1,7 @@
 # faster-or-curvature
 
+[![Downloads](https://static.pepy.tech/badge/faster-or-curvature)](https://pepy.tech/project/faster-or-curvature)
+
 Exact Ollivier–Ricci curvature of every edge of an unweighted graph, with one
 minimum cut per edge, in exact integer arithmetic and without a distance matrix.
 
