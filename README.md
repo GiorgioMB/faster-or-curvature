@@ -60,8 +60,8 @@ pip install --no-index --no-deps wheels/faster_or_curvature-*.whl
   (`ball_curvature`, `walk_curvature`), and exact incremental updates (`affected_edges`). The kernel of 1.0.0 is kept unchanged in
   `orcut/_kernels.py`, and `orcut.curvature` returns the same values bit for bit (tested).
 * **1.0.0** is the solver used for every exact curvature in Micaletto and Nigrelli,
-  *What Balanced Forman Curvature Certifies About Ollivier–Ricci Curvature*: its compiled kernels
-  (`orcut/_kernels.py`) are those of `curvature_transfer`.
+  *From Proxy to Certificate: Two-Sided Ollivier–Ricci Bounds from Balanced Forman Curvature*:
+  its compiled kernels (`orcut/_kernels.py`) are those of `curvature_transfer`.
 
 ## Layout
 
