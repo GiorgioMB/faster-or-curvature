@@ -89,5 +89,6 @@ A formal paper is currently in preparation and will be available on arXiv soon. 
   year = {2026},
   publisher = {GitHub},
   journal = {GitHub repository},
-  howpublished = {\url{[https://github.com/GiorgioMB/faster-or-curvature](https://github.com/GiorgioMB/faster-or-curvature)}},
+  howpublished = {\url{https://github.com/GiorgioMB/faster-or-curvature}},
 }
+```
