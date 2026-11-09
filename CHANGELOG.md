@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1
+
+- Documentation only; no function changes. The paper of Micaletto and Nigrelli that used the 1.0.0
+  solver is now titled *From Proxy to Certificate: Two-Sided Ollivier--Ricci Bounds from Balanced
+  Forman Curvature* (formerly *What Balanced Forman Curvature Certifies About Ollivier--Ricci
+  Curvature*); the README and the docstring of `orcut/_kernels.py` give the new title. The README
+  also has PyPI badges and a citation section.
+
 ## 1.2.0
 
 - First release on PyPI, as `faster-or-curvature` (it imports as `orcut`), with minimum versions
