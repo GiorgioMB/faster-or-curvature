@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.2
+
+- Documentation only; no function changes. 1.2.0 is the version described in *The Min-Cut
+  Formulation of Ollivier--Ricci Curvature* (Giorgio Micaletto, arXiv, forthcoming): the README says
+  so in its versions and citation sections, the new `CITATION.cff` gives the citation (GitHub's
+  "Cite this repository"), and the tag `v1.2.0` is annotated with the same note.
+
 ## 1.2.1
 
 - Documentation only; no function changes. The paper of Micaletto and Nigrelli that used the 1.0.0
@@ -10,6 +17,8 @@
 
 ## 1.2.0
 
+- The version described in *The Min-Cut Formulation of Ollivier--Ricci Curvature* (Giorgio
+  Micaletto, arXiv, forthcoming).
 - First release on PyPI, as `faster-or-curvature` (it imports as `orcut`), with minimum versions
   of numpy and numba instead of exact pins.
 - Witness relays (`F_WITNESS`, on by default: `F_ALL = 31`). A pair of P x N at distance 2 has a

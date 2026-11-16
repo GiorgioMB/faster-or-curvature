@@ -50,11 +50,13 @@ pip install --no-index --no-deps wheels/faster_or_curvature-*.whl
 
 ## Versions
 
-* **1.2.0**: witness relays (one zero-weight relay per common neighbour) for the pairs at distance 2
-  that the bitset network would list one by one, chosen per edge when the network gets smaller; a
+* **1.2.0** is the version described in *The Min-Cut Formulation of Ollivier–Ricci Curvature*
+  (Giorgio Micaletto, arXiv, forthcoming); `pip install faster-or-curvature==1.2.0` reproduces it.
+  It adds witness relays (one zero-weight relay per common neighbour) for the pairs at distance 2
+  that the bitset network would list one by one, chosen per edge when the network gets smaller, and a
   bound on the bitset work (four words per adjacency entry) beyond which an edge is solved on the
   linear-size witness network (`orcut._witness`, also usable on its own). Values
-  unchanged (tested).
+  unchanged (tested). 1.2.1 and 1.2.2 change documentation only.
 * **1.1.0**: `orcut.curvature` (any one-step measure, exact fractions, diagnostics, ablation
   flags), certificates (`orcut.certify`), the layered closure for supports of radius r
   (`ball_curvature`, `walk_curvature`), and exact incremental updates (`affected_edges`). The kernel of 1.0.0 is kept unchanged in
@@ -80,15 +82,32 @@ pip install --no-index --no-deps wheels/faster_or_curvature-*.whl
 
 ## Citation
 
-A formal paper is currently in preparation and will be available on arXiv soon. In the meantime, if you use this software in your research, please cite the repository:
+Version 1.2.0 is the version described in *The Min-Cut Formulation of Ollivier–Ricci Curvature*
+(Giorgio Micaletto), which will appear on arXiv. Until then, please cite the software:
 
 ```bibtex
 @misc{faster-or-curvature,
-  author = {Giorgio Micaletto},
-  title = {faster-or-curvature: Exact Ollivier–Ricci curvature in exact integer arithmetic},
-  year = {2026},
-  publisher = {GitHub},
-  journal = {GitHub repository},
+  author       = {Giorgio Micaletto},
+  title        = {faster-or-curvature: Exact Ollivier--Ricci curvature in exact integer arithmetic},
+  year         = {2026},
+  version      = {1.2.0},
   howpublished = {\url{https://github.com/GiorgioMB/faster-or-curvature}},
+  note         = {Version 1.2.0, described in ``The Min-Cut Formulation of Ollivier--Ricci Curvature''},
 }
 ```
+
+GitHub's "Cite this repository" button gives the same entry, from `CITATION.cff`.
+<!--
+When the paper is on arXiv, replace the entry above with the preprint (and fill in the
+preferred-citation block at the end of CITATION.cff):
+
+@misc{micaletto2026mincut,
+  author        = {Giorgio Micaletto},
+  title         = {The Min-Cut Formulation of {Ollivier--Ricci} Curvature},
+  year          = {2026},
+  eprint        = {XXXX.XXXXX},
+  archivePrefix = {arXiv},
+}
+
+and, once the conference version is out, with @inproceedings{..., booktitle = {...}, pages = {...}}.
+-->
