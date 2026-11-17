@@ -75,35 +75,82 @@ def exact(graph, which: Sequence[str] = ("c_OR", "c_OR0", "c_LLY"), edges: Optio
 # ------------------------------------------------------------------ orcut >= 1.1
 
 def curvature(graph, measure="lazy", edges: Optional[np.ndarray] = None, n_jobs: Optional[int] = None,
-              exact_fraction: bool = False, diagnostics: bool = False, flags: Optional[int] = None):
-    """Exact curvature 1 - W1(m_i, m_j) of the undirected edges of ``graph`` (all, or the edge ids
-    ``edges``), aligned with ``graph.edges``.
+              exact_fraction: bool = False, diagnostics: bool = False, flags: Optional[int] = None, *,
+              lengths=None, truncation=None, backend: str = "auto"):
+    """Exact curvature 1 - W1(m_i, m_j) / d(i, j) of the undirected edges of ``graph`` (all, or the
+    edge ids ``edges``), aligned with ``graph.edges``; d = 1 without ``lengths``.
 
     ``measure``: ``"lazy"`` (default, idleness 1/(deg+1)), ``"nonlazy"``, ``"lly"`` (Lin--Lu--Yau),
     a number or Fraction p in [0, 1) (uniform idleness p), or a :class:`orcut.measures.Walk`
-    (weighted walk with rational idleness). With ``exact_fraction`` the result also contains the
-    exact value of W1 as an integer fraction (numerator, denominator) per edge (for ``"lly"``,
-    curvature = (1 - W1) (deg_max + 1) / deg_max); with ``diagnostics`` the per-edge diagnostics of
-    :mod:`orcut._core` (``N_DIAG`` columns). ``flags`` switches off engineering steps (ablations;
-    values do not change). Returns an array, or a dict when extra outputs are requested.
+    (weighted walk: integer weights exactly, real weights in floating point, any idleness or
+    ``"lly"``). With ``exact_fraction`` the result also contains W1 as an integer fraction
+    (numerator, denominator) per edge (for ``"lly"``, curvature = (1 - W1) (deg_max + 1) / deg_max);
+    with ``diagnostics`` the per-edge diagnostics of :mod:`orcut._core` (``N_DIAG`` columns).
+    ``flags`` switches off engineering steps (ablations; values do not change).
+
+    ``lengths``: positive edge lengths, one per edge of ``graph.edges`` (or, for a networkx graph, an
+    edge attribute name); see :mod:`orcut.weighted`. Integer lengths are exact, real lengths run in
+    floating point, and ``truncation=k`` keeps k decimal digits of real lengths (the result is then
+    exact on the truncated metric). With ``exact_fraction`` the result has
+    ``w1_num``, ``w1_den``, ``dist`` (integer lengths; curvature = 1 - w1_num / (w1_den dist), in
+    units of 1 / ``length_scale``) or ``w1`` and ``dist`` (real lengths); with ``diagnostics`` the
+    augmentations, rows and columns of the reduced transportation problem per edge.
+
+    ``backend``: ``"auto"`` (native when installed, unless ``diagnostics`` or ``flags`` ask for the
+    numba kernel), ``"native"`` or ``"numba"``; the two give the same values bit for bit. Returns an
+    array, or a dict when extra outputs are requested.
     """
+    from dataclasses import replace
+
+    from . import _backend as B
     from . import _core as C
-    from .measures import parse
+    from .measures import M_WALKF, Walk, parse_spec
+    from .weighted import edge_values, length_curvature
 
+    if backend not in ("auto", "native", "numba"):
+        raise ValueError("backend must be 'auto', 'native' or 'numba'")
     g = as_graph(graph)
-    mode, pn, pd, tabs = parse(measure, g)
-    import numba
-
+    if isinstance(measure, Walk) and isinstance(measure.weights, str):
+        measure = replace(measure, weights=edge_values(graph, measure.weights))
+    if isinstance(lengths, str):
+        lengths = edge_values(graph, lengths)
     ids = np.arange(g.num_edges, dtype=np.int64) if edges is None else np.ascontiguousarray(edges, dtype=np.int64)
-    with threads(n_jobs):
-        val, num, diag = C.core_ids(g.indptr, g.indices, g.edges, ids, mode, pn, pd,
-                                    C.F_ALL if flags is None else flags, 8 * numba.get_num_threads(), tabs)
+    if lengths is not None:
+        if backend == "numba":
+            raise ValueError("edge lengths are solved by the native backend only")
+        if flags is not None:
+            raise ValueError("flags are the ablations of the numba kernel of the hop metric")
+        return length_curvature(g, measure, ids, lengths, truncation, n_jobs, exact_fraction, diagnostics)
+    if truncation is not None:
+        raise ValueError("truncation applies to edge lengths (lengths=...)")
+    spec = parse_spec(measure, g)
+    numba_only = diagnostics or flags is not None
+    if backend == "native":
+        if not B.available():
+            raise ImportError("the native backend (orcut._native) is not installed")
+        if numba_only:
+            raise ValueError("diagnostics and flags belong to the numba kernel: use backend='numba'")
+    use_native = backend == "native" or (backend == "auto" and B.available() and not numba_only)
+    if spec.mode == M_WALKF and not use_native:
+        raise ValueError("real walk weights need the native backend (or integer weights for the numba kernel)")
+    diag = None
+    if use_native:
+        val, num, den, _ = B.hop(g, ids, spec, B.threads_for(n_jobs))
+    else:
+        import numba
+
+        with threads(n_jobs):
+            val, nd, diag = C.core_ids(g.indptr, g.indices, g.edges, ids, spec.mode, spec.pn, spec.pd,
+                                       C.F_ALL if flags is None else flags, 8 * numba.get_num_threads(), spec.tabs)
+        num, den = nd[:, 0], nd[:, 1]
+    if spec.lly2:
+        val = 2.0 * val
     if not (exact_fraction or diagnostics):
         return val
     out = {"curvature": val}
     if exact_fraction:
-        out["w1_num"] = num[:, 0]
-        out["w1_den"] = num[:, 1]
+        out["w1_num"] = num
+        out["w1_den"] = den
     if diagnostics:
         out["diagnostics"] = diag
     return out

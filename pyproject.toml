@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=77"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
 
 [project]
 name = "faster-or-curvature"
-dynamic = ["version"]  # read from orcut.__version__, the only place to bump it
+dynamic = ["version"]  # from Cargo.toml; orcut.__version__ must match (tested in tests/test_native.py)
 description = "Exact Ollivier-Ricci curvature for graphs, computed with one minimum cut per edge"
 readme = "README.md"
 license = "MIT"
@@ -12,11 +12,12 @@ license-files = ["LICENSE"]
 authors = [{ name = "Giorgio Micaletto" }]
 requires-python = ">=3.10"
 dependencies = ["numba>=0.62", "numpy>=2.2"]
-keywords = ["ollivier-ricci", "curvature", "graphs", "optimal transport", "minimum cut"]
+keywords = ["ollivier-ricci", "curvature", "graphs", "optimal transport", "minimum cut", "weighted graphs"]
 classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
 
@@ -26,9 +27,13 @@ dev = ["pytest", "networkx>=3.3", "scipy"]
 [project.urls]
 Repository = "https://github.com/GiorgioMB/faster-or-curvature"
 Changelog = "https://github.com/GiorgioMB/faster-or-curvature/blob/main/CHANGELOG.md"
+Citation = "https://github.com/GiorgioMB/faster-or-curvature/blob/main/CITATION.cff"
 
-[tool.setuptools]
-packages = ["orcut"]
-
-[tool.setuptools.dynamic]
-version = { attr = "orcut.__version__" }
+[tool.maturin]
+module-name = "orcut._native"
+exclude = ["orcut/__pycache__/**/*", "tests/__pycache__/**/*", "**/*.nbi", "**/*.nbc", "**/*.pyc"]
+include = [
+    { path = "CHANGELOG.md", format = "sdist" },
+    { path = "CITATION.cff", format = "sdist" },
+    { path = "tests/*.py", format = "sdist" },
+]

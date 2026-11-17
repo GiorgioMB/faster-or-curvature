@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.3.0
+
+- Native backend: `orcut._native`, a Rust (PyO3, rayon) port of the general one-step kernel of
+  `orcut._core` (bitsets, hubs, twin merging, fast path, witness relays, warm start) with the
+  linear-size witness network for the edges it dispatches. The same exact fractions and the same
+  float values as the numba kernel, bit for bit, and the same network for every edge (tested). No
+  JIT: the first call takes about 0.1 s instead of about a minute of compilation; 1.2--1.7x faster
+  per thread on our benchmark graphs (4.4x on a grid). `orcut.curvature(backend="auto" | "native" |
+  "numba")`; diagnostics and ablation flags stay on the numba kernel, as do certificates, ball and
+  multi-step measures and the frozen 1.0.0 kernel.
+- Real walk weights: `Walk(weights=...)` with floats (or, for a networkx graph, an edge attribute
+  name) runs the same minimum cut with float capacities. `Walk(idleness="lly")`: the Lin--Lu--Yau
+  curvature of a weighted walk, as twice the curvature at idleness 1/2 (kappa_p is linear on
+  [1/2, 1) for every walk and every metric; tested exactly against the 1/(deg_max + 1) route on
+  unweighted graphs).
+- Edge lengths: `orcut.curvature(g, measure, lengths=...)` is 1 - W1(m_i, m_j) / d(i, j) for the
+  shortest-path metric of positive lengths and any one-step measure. Integer lengths are exact
+  (`exact_fraction=True` gives W1 and d(i, j) as integers), equal to the layered min cut on D - 1
+  layers (tested); real lengths run in floating point (checked against linear programming).
+  `truncation=k` keeps k decimal digits of real lengths (exact on the truncated metric).
+  `orcut.truncate_lengths`, `orcut.edge_values`, `orcut.native_available`.
+- Packaging: built with maturin; wheels (abi3, Python >= 3.10) for Linux x86_64 and aarch64,
+  macOS universal2 and Windows x64. Building from source needs a Rust toolchain.
+
 ## 1.2.2
 
 - Documentation only; no function changes. 1.2.0 is the version described in *The Min-Cut

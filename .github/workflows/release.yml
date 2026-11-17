@@ -1,5 +1,7 @@
-# Tests on every push to main and every pull request. A pushed tag vX.Y.Z also publishes
-# faster-or-curvature X.Y.Z to PyPI (trusted publishing: no tokens), once the tests have passed.
+# Builds the wheels (native backend, abi3: one per platform for every Python >= 3.10) and the sdist
+# on every push to main and every pull request, and tests the installed wheels outside the
+# checkout. A pushed tag vX.Y.Z also publishes faster-or-curvature X.Y.Z to PyPI (trusted
+# publishing: no tokens), once everything has passed.
 name: release
 
 on:
@@ -12,32 +14,63 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  wheels:
+    name: wheel (${{ matrix.os }}, ${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64 }
+          - { os: ubuntu-latest, target: aarch64 }
+          - { os: macos-latest, target: universal2-apple-darwin }
+          - { os: windows-latest, target: x64 }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: python -m pip install build
-      - run: python -m build
-      - name: The tag must match orcut.__version__
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          test -f "dist/faster_or_curvature-${GITHUB_REF_NAME#v}-py3-none-any.whl" || {
-            echo "tag $GITHUB_REF_NAME does not match orcut/__init__.py:"; ls dist; exit 1; }
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          manylinux: auto
       - uses: actions/upload-artifact@v7
         with:
-          name: dist
+          name: wheel-${{ matrix.os }}-${{ matrix.target }}
+          path: dist/
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - name: The tag must match the version (Cargo.toml and orcut/__init__.py)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          test -f "dist/faster_or_curvature-${GITHUB_REF_NAME#v}.tar.gz" || {
+            echo "tag $GITHUB_REF_NAME does not match Cargo.toml:"; ls dist; exit 1; }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sdist
           path: dist/
 
   test:
-    needs: build
-    runs-on: ubuntu-latest
+    needs: wheels
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.12", "3.14"]
+        include:
+          - { os: ubuntu-latest, python-version: "3.10" }
+          - { os: ubuntu-latest, python-version: "3.12" }
+          - { os: ubuntu-latest, python-version: "3.14" }
+          - { os: ubuntu-24.04-arm, python-version: "3.12" }
+          - { os: macos-latest, python-version: "3.12" }
+          - { os: windows-latest, python-version: "3.12" }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -45,18 +78,25 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - uses: actions/download-artifact@v8
         with:
-          name: dist
+          pattern: wheel-*
+          merge-multiple: true
           path: dist/
-      - run: python -m pip install "$(echo dist/*.whl)[dev]"
+      - name: Install the wheel for this platform (and the test dependencies)
+        shell: bash
+        run: |
+          python -m pip install "numba>=0.62" "numpy>=2.2" pytest "networkx>=3.3" scipy
+          python -m pip install --no-index --no-deps --find-links dist faster-or-curvature
       - name: Test the installed wheel (outside the checkout, so the source tree is not imported)
+        shell: bash
         run: |
           cp -r tests "$RUNNER_TEMP/tests"
           cd "$RUNNER_TEMP"
+          python -c "import orcut; assert orcut.native_available(); print(orcut.__version__)"
           python -m pytest -q tests
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, test]
+    needs: [wheels, sdist, test]
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -66,6 +106,6 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: dist
           path: dist/
+          merge-multiple: true
       - uses: pypa/gh-action-pypi-publish@release/v1
