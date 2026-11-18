@@ -94,7 +94,7 @@ def curvature(graph, measure="lazy", edges: Optional[np.ndarray] = None, n_jobs:
     exact on the truncated metric). With ``exact_fraction`` the result has
     ``w1_num``, ``w1_den``, ``dist`` (integer lengths; curvature = 1 - w1_num / (w1_den dist), in
     units of 1 / ``length_scale``) or ``w1`` and ``dist`` (real lengths); with ``diagnostics`` the
-    augmentations, rows and columns of the reduced transportation problem per edge.
+    network-simplex pivots, rows and columns of the reduced transportation problem per edge.
 
     ``backend``: ``"auto"`` (native when installed, unless ``diagnostics`` or ``flags`` ask for the
     numba kernel), ``"native"`` or ``"numba"``; the two give the same values bit for bit. Returns an

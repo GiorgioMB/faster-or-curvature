@@ -83,7 +83,7 @@ def test_unit_lengths_reproduce_the_hop_kernel(G):
         b = orcut.curvature(g, meas, lengths=ones, exact_fraction=True, diagnostics=True)
         assert np.array_equal(a["w1_num"], b["w1_num"]) and np.array_equal(a["w1_den"], b["w1_den"])
         assert np.array_equal(a["curvature"], b["curvature"]) and np.all(b["dist"] == 1)
-        assert np.all(b["augmentations"] >= 0) and np.all(b["rows"] >= 0)
+        assert np.all(b["pivots"] >= 0) and np.all(b["rows"] >= 0)
     assert np.allclose(orcut.curvature(g, "lly"), orcut.curvature(g, "lly", lengths=ones), atol=1e-12)
 
 

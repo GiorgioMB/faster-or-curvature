@@ -18,7 +18,10 @@
 - Edge lengths: `orcut.curvature(g, measure, lengths=...)` is 1 - W1(m_i, m_j) / d(i, j) for the
   shortest-path metric of positive lengths and any one-step measure. Integer lengths are exact
   (`exact_fraction=True` gives W1 and d(i, j) as integers), equal to the layered min cut on D - 1
-  layers (tested); real lengths run in floating point (checked against linear programming).
+  layers (tested); real lengths run in floating point (checked against linear programming). Each
+  edge's transport problem is solved by a network simplex (row-minimum starting basis, block
+  pricing by rows, strongly feasible trees, so no cycling), after merging the rows and columns
+  whose costs differ by a constant.
   `truncation=k` keeps k decimal digits of real lengths (exact on the truncated metric).
   `orcut.truncate_lengths`, `orcut.edge_values`, `orcut.native_available`.
 - Packaging: built with maturin; wheels (abi3, Python >= 3.10) for Linux x86_64 and aarch64,

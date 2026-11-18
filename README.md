@@ -56,21 +56,31 @@ native solver computes the distances between the vertices of positive and negati
 Dijkstras that stop at their targets (shared by every edge of a run with a common endpoint, or,
 when the graph is a small world, one single-source search per vertex shared by all edges), merges
 the rows and columns whose costs differ by a constant (paying the constant exactly), and solves
-the reduced transportation problem by successive shortest paths: exactly (i64, i128) with integer
-lengths, in floating point otherwise (checked against linear programming).
+the reduced transportation problem by a network simplex: exactly (i64, i128) with integer lengths,
+in floating point otherwise (checked against linear programming).
 
 `truncation=k` keeps k decimal digits of every real length and drops the rest: the lengths become
 the integers floor(length * 10^k), the result is an exact fraction of the truncated metric, and
 every distance shrinks by a factor of at most 1 - 10^-k / (smallest length). It buys exactness
-rather than speed: 1.2–1.3x at k = 5 and up to 1.6x at k = 1 on the graphs below. Seconds on one
+rather than speed: 1.1–1.2x at k = 5 and up to 1.4x at k = 1 on the graphs below. Seconds on one
 core (lazy measure; lengths uniform in [0.5, 2], or Euclidean for the geometric graph):
 
 | graph | edges | hop metric | real lengths | truncation=5 | truncation=1 |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Barabási–Albert, n = 2000, m = 4 | 7984 | 0.10 | 2.4 | 1.9 | 1.5 |
-| Barabási–Albert, n = 4000, m = 4 | 15984 | 0.18 | 7.8 | 6.3 | 5.0 |
-| powerlaw cluster, n = 4000 | 15978 | 0.18 | 7.8 | 6.0 | 4.8 |
-| random geometric, n = 3000 | 17129 | 0.14 | 0.72 | 0.62 | – |
+| Barabási–Albert, n = 2000, m = 4 | 7984 | 0.11 | 1.2 | 0.99 | 0.99 |
+| Barabási–Albert, n = 4000, m = 4 | 15984 | 0.16 | 4.5 | 3.8 | 3.4 |
+| powerlaw cluster, n = 4000 | 15978 | 0.13 | 4.3 | 3.9 | 3.2 |
+| random geometric, n = 3000 | 17129 | 0.10 | 0.39 | 0.32 | – |
+
+Against GraphRicciCurvature 0.6.1 (exact transport, `method="OTD"`, one process) on real weighted
+networks, with the same values to 1e-13 on every edge (seconds on one core; lazy walk with idleness
+1/2, or its default heat kernel exp(-w^2) with lengths divided by their median):
+
+| network | edges | measure | faster-or-curvature | GraphRicciCurvature |
+| --- | ---: | --- | ---: | ---: |
+| Les Misérables (length 1/co-occurrences) | 254 | uniform / heat | 0.0052 / 0.0051 | 0.076 / 0.064 |
+| OpenFlights airports, 6 nearest neighbours (km) | 11636 | uniform / heat | 0.14 / 0.14 | 4.5 / 3.7 |
+| OpenFlights routes (great-circle km) | 18833 | uniform | 9.0 | 13.1 |
 
 ## Native backend
 

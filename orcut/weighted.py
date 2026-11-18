@@ -7,14 +7,15 @@ supports, so the transport problem is still one minimum cut, on D - 1 layers (th
 of :mod:`orcut._layered`; tested against the native solver). The native solver runs the same
 dual as the primal-dual method: one maximum flow (minimum cut) per level of the potential, found by
 a Dijkstra on reduced costs, in exact integer arithmetic. With unit lengths there are at most three
-levels. Real lengths have no integral optimum: the solver then runs in floating point, with one
-level per distinct value of the potential.
+levels. Real lengths have no integral optimum: the solver then runs in floating point. The
+transport problem of each edge is solved by a network simplex, after merging the rows and columns
+whose costs differ by a constant.
 
 ``truncation=k`` keeps k decimal digits of every length and drops the rest: the lengths become the
 integers floor(length * 10^k), the metric is integral again and the result is an exact fraction.
 Every length decreases by less than 10^-k, so every distance decreases by a factor of at most
 1 - 10^-k / (smallest length), and W1 and d(i, j) with it. Truncation buys exactness, not speed:
-on the graphs we timed, 5 digits ran 1.1x faster than full precision and 1 digit 1.2-1.3x.
+on the graphs we timed, 5 digits ran 1.1-1.2x faster than full precision and 1 digit up to 1.4x.
 """
 from __future__ import annotations
 
@@ -102,5 +103,5 @@ def length_curvature(g, measure, ids, lengths, truncation, n_jobs, exact_fractio
         else:
             out.update(w1=w1, dist=dist)
     if diagnostics:
-        out.update(augmentations=aug, rows=rows, cols=cols)
+        out.update(pivots=aug, rows=rows, cols=cols)
     return out

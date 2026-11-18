@@ -397,10 +397,43 @@ fn len_ids<'py>(
     ))
 }
 
+/// Developer profiling of the edge-length solver: switch on (and reset) or off.
+#[pyfunction]
+fn _prof(on: bool) {
+    use std::sync::atomic::Ordering::Relaxed;
+    lengths::T_DIST.store(0, Relaxed);
+    lengths::T_SOLVE.store(0, Relaxed);
+    lengths::PROF.store(on, Relaxed);
+}
+
+/// Seconds spent in distance searches and in solves (merging + transport) since ``_prof(True)``.
+#[pyfunction]
+fn _prof_get() -> (f64, f64) {
+    use std::sync::atomic::Ordering::Relaxed;
+    (lengths::T_DIST.load(Relaxed) as f64 * 1e-9, lengths::T_SOLVE.load(Relaxed) as f64 * 1e-9)
+}
+
+thread_local! {
+    static TWS: std::cell::RefCell<lengths::LenWs<f64, f64>> = std::cell::RefCell::new(lengths::LenWs::new(0));
+}
+
+/// The transport step alone (merging + network simplex) on a dense cost matrix: (W1, pivots).
+#[pyfunction]
+fn _transport(cost: PyReadonlyArray2<'_, f64>, a: PyReadonlyArray1<'_, f64>, b: PyReadonlyArray1<'_, f64>) -> PyResult<(f64, i32)> {
+    let (m, a, b) = (cost.as_slice()?, a.as_slice()?, b.as_slice()?);
+    if m.len() != a.len() * b.len() {
+        return Err(PyValueError::new_err("cost must be len(a) x len(b)"));
+    }
+    Ok(TWS.with(|w| w.borrow_mut().transport_dense(m, a, b, a.len(), b.len())))
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hop_ids, m)?)?;
     m.add_function(wrap_pyfunction!(len_ids, m)?)?;
+    m.add_function(wrap_pyfunction!(_prof, m)?)?;
+    m.add_function(wrap_pyfunction!(_prof_get, m)?)?;
+    m.add_function(wrap_pyfunction!(_transport, m)?)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }
