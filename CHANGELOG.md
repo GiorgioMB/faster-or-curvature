@@ -19,9 +19,15 @@
   shortest-path metric of positive lengths and any one-step measure. Integer lengths are exact
   (`exact_fraction=True` gives W1 and d(i, j) as integers), equal to the layered min cut on D - 1
   layers (tested); real lengths run in floating point (checked against linear programming). Each
-  edge's transport problem is solved by a network simplex (row-minimum starting basis, block
-  pricing by rows, strongly feasible trees, so no cycling), after merging the rows and columns
-  whose costs differ by a constant.
+  edge's transport problem is solved by a network simplex (row-minimum starting basis, vectorized
+  block pricing by rows, strongly feasible trees, so no cycling, and LEMON's spanning-tree
+  structure, ported from POT's adaptation with LEMON's notice in `src/lengths.rs`), after merging
+  the rows and columns whose costs differ by a constant; distances come from bucket-queue Dijkstras
+  (buckets narrower than the shortest edge), with a radix heap for very wide length ranges. On the
+  same cost matrices the transport step is 1.5--1.9x faster than POT's network simplex on large
+  problems and 30--40x on small ones; against GraphRicciCurvature 0.6.1 the whole computation is
+  2.6x faster on OpenFlights routes (18,833 edges) and 15--23x on smaller or spatial networks, with
+  the same values to 1e-13.
   `truncation=k` keeps k decimal digits of real lengths (exact on the truncated metric).
   `orcut.truncate_lengths`, `orcut.edge_values`, `orcut.native_available`.
 - Packaging: built with maturin; wheels (abi3, Python >= 3.10) for Linux x86_64 and aarch64,

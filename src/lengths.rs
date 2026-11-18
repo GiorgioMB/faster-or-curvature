@@ -50,6 +50,9 @@ pub trait Dist:
     fn art(maxc: Self, n: usize) -> Self;
     /// Reduced costs above -tol do not enter (0 for integers; float rounding near ``art``).
     fn ntol(art: Self) -> Self;
+    /// Monotone u64 key of a non-negative distance (f64: its bits order like the values).
+    fn key(self) -> u64;
+    fn from_key(k: u64) -> Self;
 }
 impl Dist for i64 {
     const ZERO: i64 = 0;
@@ -70,6 +73,14 @@ impl Dist for i64 {
     fn ntol(_art: i64) -> i64 {
         0
     }
+    #[inline(always)]
+    fn key(self) -> u64 {
+        self as u64
+    }
+    #[inline(always)]
+    fn from_key(k: u64) -> i64 {
+        k as i64
+    }
 }
 impl Dist for f64 {
     const ZERO: f64 = 0.0;
@@ -89,6 +100,14 @@ impl Dist for f64 {
     }
     fn ntol(art: f64) -> f64 {
         art * 1e-14
+    }
+    #[inline(always)]
+    fn key(self) -> u64 {
+        self.to_bits()
+    }
+    #[inline(always)]
+    fn from_key(k: u64) -> f64 {
+        f64::from_bits(k)
     }
 }
 
@@ -148,46 +167,143 @@ impl Prod<f64> for f64 {
     }
 }
 
-#[inline]
-fn hpush<D: PartialOrd + Copy>(h: &mut Vec<(D, u32)>, x: (D, u32)) {
-    h.push(x);
-    let mut k = h.len() - 1;
-    while k > 0 {
-        let p = (k - 1) / 2;
-        if h[k].0 < h[p].0 {
-            h.swap(k, p);
-            k = p;
+/// Radix heap: a monotone priority queue (every key pushed is at least the last key popped, as in
+/// Dijkstra), with buckets by the highest bit in which a key differs from the last key popped and a
+/// bitmask of the non-empty ones.
+pub struct RHeap {
+    b: Vec<Vec<(u64, u32)>>,
+    mask: u64,
+    last: u64,
+}
+
+impl Default for RHeap {
+    fn default() -> Self {
+        RHeap { b: (0..65).map(|_| Vec::new()).collect(), mask: 0, last: 0 }
+    }
+}
+
+impl RHeap {
+    #[inline(always)]
+    fn idx(&self, k: u64) -> usize {
+        if k == self.last {
+            0
         } else {
-            break;
+            64 - (k ^ self.last).leading_zeros() as usize
+        }
+    }
+    pub fn clear(&mut self) {
+        self.b[0].clear();
+        let mut m = self.mask;
+        while m != 0 {
+            let i = m.trailing_zeros() as usize + 1;
+            self.b[i].clear();
+            m &= m - 1;
+        }
+        self.mask = 0;
+        self.last = 0;
+    }
+    #[inline(always)]
+    pub fn push(&mut self, k: u64, v: u32) {
+        let i = self.idx(k);
+        self.b[i].push((k, v));
+        if i > 0 {
+            self.mask |= 1u64 << (i - 1);
+        }
+    }
+    #[inline]
+    pub fn pop(&mut self) -> Option<(u64, u32)> {
+        if self.b[0].is_empty() {
+            if self.mask == 0 {
+                return None;
+            }
+            let i = self.mask.trailing_zeros() as usize + 1;
+            self.mask &= !(1u64 << (i - 1));
+            let mut items = std::mem::take(&mut self.b[i]);
+            let mut mn = u64::MAX;
+            for &(k, _) in &items {
+                if k < mn {
+                    mn = k;
+                }
+            }
+            self.last = mn;
+            for &(k, v) in &items {
+                let j = self.idx(k);
+                self.b[j].push((k, v));
+                if j > 0 {
+                    self.mask |= 1u64 << (j - 1);
+                }
+            }
+            items.clear();
+            self.b[i] = items;
+        }
+        self.b[0].pop()
+    }
+}
+
+/// Bucket queue for Dijkstra with buckets narrower than the shortest edge (width ell_min / 2): no
+/// relaxation lands in the bucket being drained, so every vertex popped is final (Dinitz's
+/// label-setting argument), and push and pop are O(1). Circular, with a power-of-two number of
+/// buckets covering ell_max.
+pub struct BQueue {
+    b: Vec<Vec<u32>>,
+    cur: usize,
+    hi: usize,
+    cnt: usize,
+    inv: f64,
+    mask: usize,
+}
+
+impl BQueue {
+    /// Buckets for edge lengths in [lmin, lmax], or None if they would be too many (then the radix
+    /// heap is used).
+    pub fn for_lengths(lmin: f64, lmax: f64) -> Option<BQueue> {
+        if !(lmin > 0.0) || !(lmax / lmin <= 8192.0) {
+            return None;
+        }
+        let inv = 2.0 / lmin;
+        let size = ((lmax * inv).ceil() as usize + 3).next_power_of_two();
+        Some(BQueue { b: (0..size).map(|_| Vec::new()).collect(), cur: 0, hi: 0, cnt: 0, inv, mask: size - 1 })
+    }
+    /// Empty the buckets still holding entries (only those between the current and the highest one).
+    pub fn clear(&mut self) {
+        if self.cnt > 0 {
+            let span = (self.hi - self.cur).min(self.mask);
+            for k in self.cur..=self.cur + span {
+                self.b[k & self.mask].clear();
+            }
+        }
+        self.cur = 0;
+        self.hi = 0;
+        self.cnt = 0;
+    }
+    #[inline(always)]
+    pub fn push(&mut self, d: f64, v: u32) {
+        let k = (d * self.inv) as usize;
+        self.b[k & self.mask].push(v);
+        if k > self.hi {
+            self.hi = k;
+        }
+        self.cnt += 1;
+    }
+    #[inline(always)]
+    pub fn pop(&mut self) -> Option<u32> {
+        if self.cnt == 0 {
+            return None;
+        }
+        loop {
+            if let Some(v) = self.b[self.cur & self.mask].pop() {
+                self.cnt -= 1;
+                return Some(v);
+            }
+            self.cur += 1;
         }
     }
 }
 
-#[inline]
-fn hpop<D: PartialOrd + Copy>(h: &mut Vec<(D, u32)>) -> Option<(D, u32)> {
-    let n = h.len();
-    if n == 0 {
-        return None;
+impl Clone for BQueue {
+    fn clone(&self) -> Self {
+        BQueue { b: (0..self.b.len()).map(|_| Vec::new()).collect(), cur: 0, hi: 0, cnt: 0, inv: self.inv, mask: self.mask }
     }
-    h.swap(0, n - 1);
-    let top = h.pop();
-    let n = h.len();
-    let mut k = 0usize;
-    loop {
-        let l = 2 * k + 1;
-        if l >= n {
-            break;
-        }
-        let r = l + 1;
-        let c = if r < n && h[r].0 < h[l].0 { r } else { l };
-        if h[c].0 < h[k].0 {
-            h.swap(c, k);
-            k = c;
-        } else {
-            break;
-        }
-    }
-    top
 }
 
 #[inline]
@@ -268,7 +384,8 @@ pub struct LenWs<F: Prod<D>, D: Dist> {
     fin: Vec<u32>,
     dval: Vec<D>,
     dep: u32,
-    heap: Vec<(D, u32)>,
+    rheap: RHeap,
+    bq: Option<BQueue>,
     tst: Vec<u32>,
     tloc: Vec<u32>,
     tep: u32,
@@ -296,12 +413,17 @@ pub struct LenWs<F: Prod<D>, D: Dist> {
     nflow: Vec<F>,
     nin: Vec<bool>,
     nadj: Vec<Vec<(u32, u32)>>,
-    npar: Vec<u32>,
-    npred: Vec<u32>,
-    nfwd: Vec<bool>,
-    ndep: Vec<u32>,
     npot: Vec<D>,
     nq: Vec<u32>,
+    tpar: Vec<usize>,
+    tpred: Vec<usize>,
+    tfwd: Vec<bool>,
+    tthr: Vec<usize>,
+    trev: Vec<usize>,
+    tsucc: Vec<usize>,
+    tlast: Vec<usize>,
+    tdirty: Vec<usize>,
+    tord: Vec<usize>,
     nra: Vec<F>,
     nrd: Vec<F>,
     nseen: Vec<bool>,
@@ -320,6 +442,12 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
         w.sst = vec![0; n];
         w.sloc = vec![0; n];
         w
+    }
+
+    /// Use a bucket queue (narrower than the shortest edge) in the distance searches.
+    pub fn with_buckets(mut self, bq: Option<BQueue>) -> Self {
+        self.bq = bq;
+        self
     }
 
     fn fail() -> LenOut {
@@ -341,13 +469,49 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
         let t0 = prof_start();
         let dep = self.next_dep();
         let tep = self.tep;
-        self.heap.clear();
         self.dst[s] = dep;
         self.dval[s] = D::ZERO;
-        hpush(&mut self.heap, (D::ZERO, s as u32));
         let mut found = 0usize;
         self.n_dij += 1;
-        while let Some((d, w)) = hpop(&mut self.heap) {
+        if let Some(mut bq) = self.bq.take() {
+            bq.clear();
+            bq.push(0.0, s as u32);
+            while let Some(w) = bq.pop() {
+                let w = w as usize;
+                if self.fin[w] == dep {
+                    continue;
+                }
+                let d = self.dval[w];
+                self.fin[w] = dep;
+                self.n_settled += 1;
+                if self.tst[w] == tep {
+                    self.mat[row * nt + self.tloc[w] as usize] = d;
+                    found += 1;
+                    if found == nt {
+                        break;
+                    }
+                }
+                for e in g.lo(w)..g.hi(w) {
+                    let v = g.at(e);
+                    if self.fin[v] == dep {
+                        continue;
+                    }
+                    let nd = d + lens[e];
+                    if self.dst[v] != dep || nd < self.dval[v] {
+                        self.dst[v] = dep;
+                        self.dval[v] = nd;
+                        bq.push(nd.to_f64(), v as u32);
+                    }
+                }
+            }
+            self.bq = Some(bq);
+            prof_add(&T_DIST, t0);
+            return;
+        }
+        self.rheap.clear();
+        self.rheap.push(D::ZERO.key(), s as u32);
+        while let Some((kk, w)) = self.rheap.pop() {
+            let d = D::from_key(kk);
             let w = w as usize;
             if self.fin[w] == dep || d > self.dval[w] {
                 continue;
@@ -370,7 +534,7 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
                 if self.dst[v] != dep || nd < self.dval[v] {
                     self.dst[v] = dep;
                     self.dval[v] = nd;
-                    hpush(&mut self.heap, (nd, v as u32));
+                    self.rheap.push(nd.key(), v as u32);
                 }
             }
         }
@@ -381,11 +545,12 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
     fn pair_dist(&mut self, g: &Graph, lens: &[D], i: usize, j: usize, bound: D) -> D {
         let t0 = prof_start();
         let dep = self.next_dep();
-        self.heap.clear();
+        self.rheap.clear();
         self.dst[i] = dep;
         self.dval[i] = D::ZERO;
-        hpush(&mut self.heap, (D::ZERO, i as u32));
-        while let Some((d, w)) = hpop(&mut self.heap) {
+        self.rheap.push(D::ZERO.key(), i as u32);
+        while let Some((kk, w)) = self.rheap.pop() {
+            let d = D::from_key(kk);
             let w = w as usize;
             if self.fin[w] == dep || d > self.dval[w] {
                 continue;
@@ -404,7 +569,7 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
                 if self.dst[v] != dep || nd < self.dval[v] {
                     self.dst[v] = dep;
                     self.dval[v] = nd;
-                    hpush(&mut self.heap, (nd, v as u32));
+                    self.rheap.push(nd.key(), v as u32);
                 }
             }
         }
@@ -721,36 +886,13 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
         }
     }
 
-    /// Hang the tree below ``es`` (whose parent fields are set) by a BFS: parents, depths,
-    /// orientations, and potentials with zero reduced cost on tree arcs.
-    fn ns_hang(&mut self, es: usize, r: usize, c: usize, art: D) {
-        self.nq.clear();
-        self.nq.push(es as u32);
-        let mut h = 0usize;
-        while h < self.nq.len() {
-            let u = self.nq[h] as usize;
-            h += 1;
-            for q in 0..self.nadj[u].len() {
-                let (e, v) = self.nadj[u][q];
-                let (e, v) = (e as usize, v as usize);
-                if v as u32 == self.npar[u] {
-                    continue;
-                }
-                let (cst, v_tail) = self.ns_side(e, u, v, r, c, art);
-                self.npar[v] = u as u32;
-                self.npred[v] = e as u32;
-                self.ndep[v] = self.ndep[u] + 1;
-                self.nfwd[v] = v_tail;
-                self.npot[v] = if v_tail { self.npot[u] - cst } else { self.npot[u] + cst };
-                self.nq.push(v as u32);
-            }
-        }
-    }
-
     /// Network simplex on the transportation problem ``tc`` (r x c; rows supply ``sa``, columns
-    /// demand ``sb``): artificial starting basis at a root (as LEMON), block-search pricing, and the
-    /// leaving arc of strongly feasible trees (the last blocking arc of the cycle from its apex), which
-    /// rules out cycling on these degenerate problems. Exact with integer masses and costs.
+    /// demand ``sb``): a strongly feasible starting basis (row-minimum rule, below), block pricing by
+    /// rows, the leaving arc of strongly feasible trees (no cycling), and LEMON's spanning-tree
+    /// structure (parent, thread, subtree sizes and last successors: findJoinNode, findLeavingArc,
+    /// changeFlow, updateTreeStructure and updatePotential follow LEMON's network_simplex.h as adapted
+    /// in POT's network_simplex_simple.h; see the notice at the end of this file). Exact with integer
+    /// masses and costs.
     fn transport(&mut self, r: usize, c: usize) -> Option<(<F as Prod<D>>::Acc, i32)> {
         let mut cost = <F as Prod<D>>::Acc::default();
         if c == 1 {
@@ -846,21 +988,59 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
                 }
             }
         }
-        self.npar.resize(n, 0);
-        self.npred.resize(n, 0);
-        self.nfwd.resize(n, false);
-        self.ndep.resize(n, 0);
+        // the thread structure of the starting tree: a preorder DFS from the root
+        const NONE: usize = usize::MAX;
+        for v in [&mut self.tpar, &mut self.tpred, &mut self.tthr, &mut self.trev, &mut self.tsucc, &mut self.tlast] {
+            v.clear();
+            v.resize(n, NONE);
+        }
+        self.tfwd.clear();
+        self.tfwd.resize(n, false);
+        self.npot.clear();
         self.npot.resize(n, D::ZERO);
-        self.npar[root] = u32::MAX;
-        self.ndep[root] = 0;
-        self.npot[root] = D::ZERO;
-        self.ns_hang(root, r, c, art);
+        self.tord.clear();
+        self.tdirty.clear();
+        self.tdirty.push(root);
+        while let Some(u) = self.tdirty.pop() {
+            self.tord.push(u);
+            for q in 0..self.nadj[u].len() {
+                let (e, v) = self.nadj[u][q];
+                let (e, v) = (e as usize, v as usize);
+                if v == self.tpar[u] {
+                    continue;
+                }
+                let (cst, v_tail) = self.ns_side(e, u, v, r, c, art);
+                self.tpar[v] = u;
+                self.tpred[v] = e;
+                self.tfwd[v] = v_tail;
+                self.npot[v] = if v_tail { self.npot[u] - cst } else { self.npot[u] + cst };
+                self.tdirty.push(v);
+            }
+        }
+        if self.tord.len() != n {
+            return None;
+        }
+        for i in 0..n {
+            self.tsucc[self.tord[i]] = 1;
+        }
+        for i in (1..n).rev() {
+            let v = self.tord[i];
+            let pv = self.tpar[v];
+            self.tsucc[pv] += self.tsucc[v];
+        }
+        for i in 0..n {
+            let v = self.tord[i];
+            self.tlast[v] = self.tord[i + self.tsucc[v] - 1];
+            let nx = self.tord[(i + 1) % n];
+            self.tthr[v] = nx;
+            self.trev[nx] = v;
+        }
         let block = ((nreal as f64).sqrt().ceil() as usize).max(10);
         let mut nx = 0usize;
         let mut piv = 0i32;
         loop {
             // block search, by whole rows: the most negative reduced cost of the first rows that cover a
-            // block and contain one. Tree arcs have zero reduced cost and never qualify.
+            // block and contain one (tree arcs have zero reduced cost; they are skipped when picking)
             let mut best = usize::MAX;
             let mut bmin = D::ZERO - tol;
             let mut scanned = 0usize;
@@ -870,19 +1050,38 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
                 for _ in 0..r {
                     let px = self.npot[x];
                     let row = &self.tc[x * c..x * c + c];
-                    let mut m = D::MAXV;
-                    for y in 0..c {
+                    // four independent running minima, so the scan vectorizes without reassociation
+                    let mut ml = [D::MAXV; 4];
+                    let c4 = c & !3;
+                    let mut y = 0;
+                    while y < c4 {
+                        for t in 0..4 {
+                            let v = row[y + t] + px - pc[y + t];
+                            if v < ml[t] {
+                                ml[t] = v;
+                            }
+                        }
+                        y += 4;
+                    }
+                    while y < c {
                         let v = row[y] + px - pc[y];
-                        if v < m {
-                            m = v;
+                        if v < ml[0] {
+                            ml[0] = v;
+                        }
+                        y += 1;
+                    }
+                    let mut m = ml[0];
+                    for t in 1..4 {
+                        if ml[t] < m {
+                            m = ml[t];
                         }
                     }
                     if m < bmin {
-                        bmin = m;
                         for y in 0..c {
-                            if row[y] + px - pc[y] == m {
+                            let v = row[y] + px - pc[y];
+                            if v < bmin && !self.nin[x * c + y] {
+                                bmin = v;
                                 best = x * c + y;
-                                break;
                             }
                         }
                     }
@@ -906,97 +1105,174 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
             }
             let k = best / c;
             let l = r + best % c;
-            let (mut a, mut b) = (k, l);
-            while self.ndep[a] > self.ndep[b] {
-                a = self.npar[a] as usize;
+            // findJoinNode
+            // SAFETY (this block and the walks below): every node index is < n (the tree arrays have n
+            // entries; parents of non-root nodes are nodes, and the walks stop at the join node before
+            // the root's NONE parent), and every arc index is < na (nflow has na entries).
+            let (mut u, mut v) = (k, l);
+            unsafe {
+                while u != v {
+                    if *self.tsucc.get_unchecked(u) < *self.tsucc.get_unchecked(v) {
+                        u = *self.tpar.get_unchecked(u);
+                    } else {
+                        v = *self.tpar.get_unchecked(v);
+                    }
+                }
             }
-            while self.ndep[b] > self.ndep[a] {
-                b = self.npar[b] as usize;
-            }
-            while a != b {
-                a = self.npar[a] as usize;
-                b = self.npar[b] as usize;
-            }
-            let join = a;
-            // leaving arc: the last blocking arc from the apex along the orientation of k -> l
+            let join = u;
+            // findLeavingArc (the entering arc is at its lower bound: first = k, second = l)
             let mut delta = F::INF;
-            let mut uout = usize::MAX;
-            let mut on_k = true;
-            let mut u = k;
-            while u != join {
-                if self.nfwd[u] {
-                    let f = self.nflow[self.npred[u] as usize];
-                    if f < delta {
-                        delta = f;
-                        uout = u;
-                    }
-                }
-                u = self.npar[u] as usize;
-            }
-            let mut u = l;
-            while u != join {
-                if !self.nfwd[u] {
-                    let f = self.nflow[self.npred[u] as usize];
-                    if f <= delta {
-                        delta = f;
-                        uout = u;
-                        on_k = false;
-                    }
-                }
-                u = self.npar[u] as usize;
-            }
-            if uout == usize::MAX {
-                return None;
-            }
-            if delta > F::ZERO {
+            let mut uout = NONE;
+            let mut result = 0u8;
+            unsafe {
                 let mut u = k;
                 while u != join {
-                    let ea = self.npred[u] as usize;
-                    if self.nfwd[u] {
-                        self.nflow[ea] -= delta;
-                    } else {
-                        self.nflow[ea] += delta;
+                    if *self.tfwd.get_unchecked(u) {
+                        let d = *self.nflow.get_unchecked(*self.tpred.get_unchecked(u));
+                        if d < delta {
+                            delta = d;
+                            uout = u;
+                            result = 1;
+                        }
                     }
-                    u = self.npar[u] as usize;
+                    u = *self.tpar.get_unchecked(u);
                 }
                 let mut u = l;
                 while u != join {
-                    let ea = self.npred[u] as usize;
-                    if self.nfwd[u] {
-                        self.nflow[ea] += delta;
-                    } else {
-                        self.nflow[ea] -= delta;
+                    if !*self.tfwd.get_unchecked(u) {
+                        let d = *self.nflow.get_unchecked(*self.tpred.get_unchecked(u));
+                        if d <= delta {
+                            delta = d;
+                            uout = u;
+                            result = 2;
+                        }
                     }
-                    u = self.npar[u] as usize;
+                    u = *self.tpar.get_unchecked(u);
                 }
             }
-            self.nflow[best] = delta;
-            let eout = self.npred[uout] as usize;
+            if result == 0 {
+                return None;
+            }
+            let (uin, vin) = if result == 1 { (k, l) } else { (l, k) };
+            // changeFlow
+            if delta > F::ZERO {
+                self.nflow[best] += delta;
+                unsafe {
+                    let mut u = k;
+                    while u != join {
+                        let ea = *self.tpred.get_unchecked(u);
+                        if *self.tfwd.get_unchecked(u) {
+                            *self.nflow.get_unchecked_mut(ea) -= delta;
+                        } else {
+                            *self.nflow.get_unchecked_mut(ea) += delta;
+                        }
+                        u = *self.tpar.get_unchecked(u);
+                    }
+                    let mut u = l;
+                    while u != join {
+                        let ea = *self.tpred.get_unchecked(u);
+                        if *self.tfwd.get_unchecked(u) {
+                            *self.nflow.get_unchecked_mut(ea) += delta;
+                        } else {
+                            *self.nflow.get_unchecked_mut(ea) -= delta;
+                        }
+                        u = *self.tpar.get_unchecked(u);
+                    }
+                }
+            }
+            let eout = self.tpred[uout];
             self.nin[eout] = false;
             self.nin[best] = true;
-            let pout = self.npar[uout] as usize;
-            for w in [uout, pout] {
-                if let Some(p) = self.nadj[w].iter().position(|&(z, _)| z as usize == eout) {
-                    self.nadj[w].swap_remove(p);
+            // updateTreeStructure
+            let old_rev_thread = self.trev[uout];
+            let old_succ_num = self.tsucc[uout];
+            let old_last_succ = self.tlast[uout];
+            let vout = self.tpar[uout];
+            let mut u = self.tlast[uin];
+            let mut right = self.tthr[u];
+            let last = if old_rev_thread == vin { self.tthr[self.tlast[uout]] } else { self.tthr[vin] };
+            self.tthr[vin] = uin;
+            let mut stem = uin;
+            self.tdirty.clear();
+            self.tdirty.push(vin);
+            let mut par_stem = vin;
+            while stem != uout {
+                let new_stem = self.tpar[stem];
+                self.tthr[u] = new_stem;
+                self.tdirty.push(u);
+                let w = self.trev[stem];
+                self.tthr[w] = right;
+                self.trev[right] = w;
+                self.tpar[stem] = par_stem;
+                par_stem = stem;
+                stem = new_stem;
+                u = if self.tlast[stem] == self.tlast[par_stem] { self.trev[par_stem] } else { self.tlast[stem] };
+                right = self.tthr[u];
+            }
+            self.tpar[uout] = par_stem;
+            self.tthr[u] = last;
+            self.trev[last] = u;
+            self.tlast[uout] = u;
+            if old_rev_thread != vin {
+                self.tthr[old_rev_thread] = right;
+                self.trev[right] = old_rev_thread;
+            }
+            for i in 0..self.tdirty.len() {
+                let u = self.tdirty[i];
+                let t = self.tthr[u];
+                self.trev[t] = u;
+            }
+            let mut tmp_sc: isize = 0;
+            let tmp_ls = self.tlast[uout];
+            let mut u = uout;
+            while u != uin {
+                let w = self.tpar[u];
+                self.tpred[u] = self.tpred[w];
+                self.tfwd[u] = !self.tfwd[w];
+                tmp_sc += self.tsucc[u] as isize - self.tsucc[w] as isize;
+                self.tsucc[u] = tmp_sc as usize;
+                self.tlast[w] = tmp_ls;
+                u = w;
+            }
+            self.tpred[uin] = best;
+            self.tfwd[uin] = uin == k;
+            self.tsucc[uin] = old_succ_num;
+            let (up_limit_in, up_limit_out) = if self.tlast[join] == vin { (NONE, join) } else { (join, NONE) };
+            let lsu = self.tlast[uout];
+            let mut u = vin;
+            while u != up_limit_in && u != NONE && self.tlast[u] == vin {
+                self.tlast[u] = lsu;
+                u = self.tpar[u];
+            }
+            let fill = if join != old_rev_thread && vin != old_rev_thread { old_rev_thread } else { lsu };
+            let mut u = vout;
+            while u != up_limit_out && u != NONE && self.tlast[u] == old_last_succ {
+                self.tlast[u] = fill;
+                u = self.tpar[u];
+            }
+            unsafe {
+                let mut u = vin;
+                while u != join {
+                    *self.tsucc.get_unchecked_mut(u) += old_succ_num;
+                    u = *self.tpar.get_unchecked(u);
+                }
+                let mut u = vout;
+                while u != join {
+                    *self.tsucc.get_unchecked_mut(u) -= old_succ_num;
+                    u = *self.tpar.get_unchecked(u);
                 }
             }
-            self.nadj[k].push((best as u32, l as u32));
-            self.nadj[l].push((best as u32, k as u32));
-            // the subtree below the leaving arc contains k (leaving arc on k's side) or l; it hangs
-            // from the other endpoint of the entering arc now, and only its nodes change
-            let (es, eo) = if on_k { (k, l) } else { (l, k) };
-            self.npar[es] = eo as u32;
-            self.npred[es] = best as u32;
-            self.ndep[es] = self.ndep[eo] + 1;
+            // updatePotential: the moved subtree shifts by a constant
             let cb = self.tc[best];
-            if es == l {
-                self.nfwd[es] = false;
-                self.npot[es] = self.npot[eo] + cb;
-            } else {
-                self.nfwd[es] = true;
-                self.npot[es] = self.npot[eo] - cb;
+            let sigma = if self.tfwd[uin] { self.npot[vin] - self.npot[uin] - cb } else { self.npot[vin] - self.npot[uin] + cb };
+            let end = self.tthr[self.tlast[uin]];
+            let mut u = uin;
+            unsafe {
+                while u != end {
+                    *self.npot.get_unchecked_mut(u) += sigma;
+                    u = *self.tthr.get_unchecked(u);
+                }
             }
-            self.ns_hang(es, r, c, art);
         }
         for e in 0..nreal {
             if self.nin[e] {
@@ -1015,40 +1291,96 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
 pub struct DijWs<D: Dist> {
     fin: Vec<u32>,
     ep: u32,
-    heap: Vec<(D, u32)>,
+    heap: RHeap,
+    bq: Option<BQueue>,
+    _d: std::marker::PhantomData<D>,
 }
 
 impl<D: Dist> DijWs<D> {
-    pub fn new(n: usize) -> Self {
-        DijWs { fin: vec![0; n], ep: 0, heap: Vec::new() }
+    pub fn new(n: usize, bq: Option<BQueue>) -> Self {
+        DijWs { fin: vec![0; n], ep: 0, heap: RHeap::default(), bq, _d: std::marker::PhantomData }
     }
 }
 
-/// Distances from s to every vertex of its component, into ``row`` (initialized to MAXV).
-pub fn full_dijkstra<D: Dist>(g: &Graph, lens: &[D], s: usize, row: &mut [D], ws: &mut DijWs<D>) {
+/// Distances from s into ``row`` (initialized to MAXV) for every vertex within ``radius``: the search
+/// stops at the first vertex beyond it, so farther entries stay MAXV. ``nbr`` is the u32 copy of the
+/// CSR indices; ``check`` in lib.rs has validated ``indptr`` and the indices, so the hot loop skips
+/// bounds checks.
+pub fn full_dijkstra<D: Dist>(indptr: &[i64], nbr: &[u32], lens: &[D], s: usize, radius: D, row: &mut [D], ws: &mut DijWs<D>) {
     let t0 = prof_start();
     let ep = bump(&mut ws.ep, &mut ws.fin);
-    ws.heap.clear();
     row[s] = D::ZERO;
-    hpush(&mut ws.heap, (D::ZERO, s as u32));
-    while let Some((d, w)) = hpop(&mut ws.heap) {
-        let w = w as usize;
-        if ws.fin[w] == ep || d > row[w] {
-            continue;
+    let n = row.len();
+    if let Some(bq) = ws.bq.as_mut() {
+        bq.clear();
+        bq.push(0.0, s as u32);
+        while let Some(w) = bq.pop() {
+            let w = w as usize;
+            // SAFETY: as below (w < n; edges of w within nbr and lens).
+            unsafe {
+                if *ws.fin.get_unchecked(w) == ep {
+                    continue;
+                }
+                let d = *row.get_unchecked(w);
+                if d > radius {
+                    break;
+                }
+                *ws.fin.get_unchecked_mut(w) = ep;
+                let (lo, hi) = (*indptr.get_unchecked(w) as usize, *indptr.get_unchecked(w + 1) as usize);
+                for e in lo..hi {
+                    let v = *nbr.get_unchecked(e) as usize;
+                    if *ws.fin.get_unchecked(v) == ep {
+                        continue;
+                    }
+                    let nd = d + *lens.get_unchecked(e);
+                    if nd < *row.get_unchecked(v) {
+                        *row.get_unchecked_mut(v) = nd;
+                        bq.push(nd.to_f64(), v as u32);
+                    }
+                }
+            }
         }
-        ws.fin[w] = ep;
-        for e in g.lo(w)..g.hi(w) {
-            let v = g.at(e);
-            if ws.fin[v] == ep {
+        prof_add(&T_DIST, t0);
+        return;
+    }
+    ws.heap.clear();
+    ws.heap.push(D::ZERO.key(), s as u32);
+    debug_assert!(ws.fin.len() >= n && indptr.len() == n + 1 && nbr.len() == lens.len());
+    while let Some((kk, w)) = ws.heap.pop() {
+        let d = D::from_key(kk);
+        let w = w as usize;
+        // SAFETY: w < n (it came from s or from nbr, all validated to be < n); e lies in
+        // indptr[w]..indptr[w + 1], within nbr and lens (validated monotone, ending at nnz).
+        unsafe {
+            if *ws.fin.get_unchecked(w) == ep || d > *row.get_unchecked(w) {
                 continue;
             }
-            let nd = d + lens[e];
-            if nd < row[v] {
-                row[v] = nd;
-                hpush(&mut ws.heap, (nd, v as u32));
+            if d > radius {
+                break;
+            }
+            *ws.fin.get_unchecked_mut(w) = ep;
+            let (lo, hi) = (*indptr.get_unchecked(w) as usize, *indptr.get_unchecked(w + 1) as usize);
+            for e in lo..hi {
+                let v = *nbr.get_unchecked(e) as usize;
+                if *ws.fin.get_unchecked(v) == ep {
+                    continue;
+                }
+                let nd = d + *lens.get_unchecked(e);
+                if nd < *row.get_unchecked(v) {
+                    *row.get_unchecked_mut(v) = nd;
+                    ws.heap.push(nd.key(), v as u32);
+                }
             }
         }
     }
     prof_add(&T_DIST, t0);
 }
 
+// The network simplex above follows LEMON (https://lemon.cs.elte.hu), via POT's
+// network_simplex_simple.h. Original notice:
+//   Copyright (C) 2003-2010 Egervary Jeno Kombinatorikus Optimalizalasi Kutatocsoport
+//   (Egervary Research Group on Combinatorial Optimization, EGRES).
+//   Permission to use, modify and distribute this software is granted provided that this
+//   copyright notice appears in all copies. For precise terms see the accompanying LICENSE file.
+//   This software is provided "AS IS" with no warranty of any kind, express or implied, and with
+//   no claim as to its suitability for any purpose.

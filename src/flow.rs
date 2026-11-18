@@ -142,17 +142,22 @@ impl<C: Cap> Net<C> {
             self.level[s] = 0;
             self.q[0] = s as u32;
             let (mut qh, mut qt) = (0usize, 1usize);
+            // SAFETY: build() makes start (nv + 1 entries, ending at 2 na) and to/cap/rev (2 na
+            // entries, heads < nv) consistent, and q/level/it/path have nv (+ 1) entries.
             while qh < qt {
-                let u = self.q[qh] as usize;
+                let u = unsafe { *self.q.get_unchecked(qh) } as usize;
                 qh += 1;
-                let lu = self.level[u] + 1;
-                for a in self.start[u] as usize..self.start[u + 1] as usize {
-                    if self.cap[a].pos() {
-                        let v = self.to[a] as usize;
-                        if self.level[v] < 0 {
-                            self.level[v] = lu;
-                            self.q[qt] = v as u32;
-                            qt += 1;
+                let lu = unsafe { *self.level.get_unchecked(u) } + 1;
+                let (lo, hi) = unsafe { (*self.start.get_unchecked(u) as usize, *self.start.get_unchecked(u + 1) as usize) };
+                for a in lo..hi {
+                    unsafe {
+                        if self.cap.get_unchecked(a).pos() {
+                            let v = *self.to.get_unchecked(a) as usize;
+                            if *self.level.get_unchecked(v) < 0 {
+                                *self.level.get_unchecked_mut(v) = lu;
+                                *self.q.get_unchecked_mut(qt) = v as u32;
+                                qt += 1;
+                            }
                         }
                     }
                 }
@@ -200,8 +205,11 @@ impl<C: Cap> Net<C> {
                 let end = self.start[u + 1] as usize;
                 let lu = self.level[u] + 1;
                 while a < end {
-                    if self.cap[a].pos() && self.level[self.to[a] as usize] == lu {
-                        break;
+                    // SAFETY: a < end <= 2 na, and heads are < nv (see build()).
+                    unsafe {
+                        if self.cap.get_unchecked(a).pos() && *self.level.get_unchecked(*self.to.get_unchecked(a) as usize) == lu {
+                            break;
+                        }
                     }
                     a += 1;
                 }

@@ -54,23 +54,28 @@ transport problem is still one minimum cut, on D - 1 layers (the layered closure
 `orcut._layered`, which the tests match exactly). Real lengths have no integral optimum. The
 native solver computes the distances between the vertices of positive and negative net mass by
 Dijkstras that stop at their targets (shared by every edge of a run with a common endpoint, or,
-when the graph is a small world, one single-source search per vertex shared by all edges), merges
-the rows and columns whose costs differ by a constant (paying the constant exactly), and solves
-the reduced transportation problem by a network simplex: exactly (i64, i128) with integer lengths,
-in floating point otherwise (checked against linear programming).
+when the graph is a small world, one radius-bounded single-source search per vertex shared by all
+edges; bucket queues narrower than the shortest edge, so every vertex popped is final, with a radix
+heap when lengths span more than a factor 8192), merges the rows and columns whose costs differ by
+a constant (paying the constant exactly), and solves the reduced transportation problem by a
+network simplex (strongly feasible starting basis and trees, LEMON's spanning-tree structure,
+vectorized pricing by rows): exactly (i64, i128) with integer lengths, in floating point otherwise
+(checked against linear programming). On the same cost matrices this transport step is 1.5–1.9x
+faster than POT's network simplex on the largest problems of the networks below, and 30–40x on
+small ones.
 
 `truncation=k` keeps k decimal digits of every real length and drops the rest: the lengths become
 the integers floor(length * 10^k), the result is an exact fraction of the truncated metric, and
 every distance shrinks by a factor of at most 1 - 10^-k / (smallest length). It buys exactness
-rather than speed: 1.1–1.2x at k = 5 and up to 1.4x at k = 1 on the graphs below. Seconds on one
+rather than speed: 1.0–1.1x at k = 5 and up to 1.3x at k = 1 on the graphs below. Seconds on one
 core (lazy measure; lengths uniform in [0.5, 2], or Euclidean for the geometric graph):
 
 | graph | edges | hop metric | real lengths | truncation=5 | truncation=1 |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Barabási–Albert, n = 2000, m = 4 | 7984 | 0.11 | 1.2 | 0.99 | 0.99 |
-| Barabási–Albert, n = 4000, m = 4 | 15984 | 0.16 | 4.5 | 3.8 | 3.4 |
-| powerlaw cluster, n = 4000 | 15978 | 0.13 | 4.3 | 3.9 | 3.2 |
-| random geometric, n = 3000 | 17129 | 0.10 | 0.39 | 0.32 | – |
+| Barabási–Albert, n = 2000, m = 4 | 7984 | 0.11 | 0.63 | 0.57 | 0.49 |
+| Barabási–Albert, n = 4000, m = 4 | 15984 | 0.14 | 1.85 | 1.83 | 1.70 |
+| powerlaw cluster, n = 4000 | 15978 | 0.16 | 1.81 | 1.71 | 1.66 |
+| random geometric, n = 3000 | 17129 | 0.12 | 0.38 | 0.38 | – |
 
 Against GraphRicciCurvature 0.6.1 (exact transport, `method="OTD"`, one process) on real weighted
 networks, with the same values to 1e-13 on every edge (seconds on one core; lazy walk with idleness
@@ -78,9 +83,9 @@ networks, with the same values to 1e-13 on every edge (seconds on one core; lazy
 
 | network | edges | measure | faster-or-curvature | GraphRicciCurvature |
 | --- | ---: | --- | ---: | ---: |
-| Les Misérables (length 1/co-occurrences) | 254 | uniform / heat | 0.0052 / 0.0051 | 0.076 / 0.064 |
-| OpenFlights airports, 6 nearest neighbours (km) | 11636 | uniform / heat | 0.14 / 0.14 | 4.5 / 3.7 |
-| OpenFlights routes (great-circle km) | 18833 | uniform | 9.0 | 13.1 |
+| Les Misérables (length 1/co-occurrences) | 254 | uniform / heat | 0.0043 / 0.0039 | 0.069 / 0.059 |
+| OpenFlights airports, 6 nearest neighbours (km) | 11636 | uniform / heat | 0.16 / 0.17 | 3.7 / 3.9 |
+| OpenFlights routes (great-circle km) | 18833 | uniform | 5.4 | 14.0 |
 
 ## Native backend
 
@@ -94,12 +99,12 @@ one core (lazy measure, seconds):
 
 | graph | edges | numba | native | speedup |
 | --- | ---: | ---: | ---: | ---: |
-| Barabási–Albert, n = 20000, m = 5 | 99975 | 1.81 | 1.33 | 1.36x |
-| powerlaw cluster, n = 20000 | 99944 | 2.93 | 2.32 | 1.26x |
-| Watts–Strogatz, n = 20000, k = 10 | 100000 | 0.80 | 0.48 | 1.68x |
-| random geometric, n = 10000 | 137691 | 5.15 | 4.32 | 1.19x |
-| G(n, p), n = 5000, mean degree 20 | 49857 | 1.05 | 0.87 | 1.21x |
-| grid 150 x 150 | 44700 | 0.17 | 0.04 | 4.41x |
+| Barabási–Albert, n = 20000, m = 5 | 99975 | 1.60 | 0.95 | 1.68x |
+| powerlaw cluster, n = 20000 | 99944 | 2.27 | 1.78 | 1.27x |
+| Watts–Strogatz, n = 20000, k = 10 | 100000 | 0.63 | 0.38 | 1.65x |
+| random geometric, n = 10000 | 137691 | 4.06 | 3.29 | 1.23x |
+| G(n, p), n = 5000, mean degree 20 | 49857 | 0.89 | 0.63 | 1.41x |
+| grid 150 x 150 | 44700 | 0.14 | 0.03 | 4.37x |
 
 `orcut.curvature(..., backend="auto")` uses it whenever it is installed, except for `diagnostics`
 and ablation `flags`, which belong to the numba kernel; `backend="native"` or `"numba"` forces

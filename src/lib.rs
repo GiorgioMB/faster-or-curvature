@@ -118,10 +118,13 @@ fn make_meas<'a>(
 }
 
 fn check(ip: &[i64], ix: &[i64], ev: &[i64], idv: &[i64]) -> PyResult<()> {
-    if ip.is_empty() || ip[ip.len() - 1] as usize != ix.len() {
+    if ip.is_empty() || ip[0] != 0 || ip[ip.len() - 1] as usize != ix.len() || ip.windows(2).any(|w| w[1] < w[0]) {
         return Err(PyValueError::new_err("indptr and indices do not match"));
     }
     let n = ip.len() - 1;
+    if n >= u32::MAX as usize || ix.iter().any(|&x| x < 0 || x as usize >= n) {
+        return Err(PyValueError::new_err("indices out of range"));
+    }
     let m = ev.len() / 2;
     for &e in idv {
         if e < 0 || e as usize >= m {
@@ -266,9 +269,17 @@ fn len_run<F: lengths::Prod<D>, D: lengths::Dist>(
     let blocks = blocks_of(ev, idv);
     let first = |a: usize| ev[2 * idv[a] as usize] as usize;
     let dmax = blocks.iter().map(|&(a, _)| g.deg(first(a)) as usize).max().unwrap_or(0);
+    let (mut lmin, mut lmax) = (f64::INFINITY, 0.0f64);
+    for &x in lens {
+        let x = x.to_f64();
+        lmin = lmin.min(x);
+        lmax = lmax.max(x);
+    }
+    let bq = lengths::BQueue::for_lengths(lmin, lmax);
+    let make_ws = || lengths::LenWs::<F, D>::new(n).with_buckets(bq.clone());
     let mut global = false;
     if k > 64 && n.saturating_mul(dmax + 1) <= GLOBAL_BUDGET {
-        let mut ws = lengths::LenWs::<F, D>::new(n);
+        let mut ws = make_ws();
         let mut tmp = vec![lengths::LenOut::default(); MAX_BLOCK];
         let step = (blocks.len() / 24).max(1);
         for b in (0..blocks.len()).step_by(step).take(24) {
@@ -278,11 +289,23 @@ fn len_run<F: lengths::Prod<D>, D: lengths::Dist>(
         global = ws.n_dij > 0 && (ws.n_settled as f64) > 0.2 * (n as f64) * (ws.n_dij as f64);
     }
     if !global {
-        return run_blocks(&blocks, k, nthreads, || lengths::LenWs::<F, D>::new(n), |ws, a, b, s| {
+        return run_blocks(&blocks, k, nthreads, make_ws, |ws, a, b, s| {
             ws.block(g, lens, meas, ev, &idv[a..b], s)
         });
     }
     let pool = pool_of(nthreads);
+    let nbr: Vec<u32> = g.indices.iter().map(|&x| x as u32).collect();
+    // the longest edge at each vertex: every target of a source s in N[u], for the edges (u, v) of a
+    // run, is within len(s, u) + max(longest(u), max_v len(u, v) + longest(v)) of s
+    let mut longest = vec![D::ZERO; n];
+    for w in 0..n {
+        for e in g.lo(w)..g.hi(w) {
+            if lens[e] > longest[w] {
+                longest[w] = lens[e];
+            }
+        }
+    }
+    let mut radius = vec![D::ZERO; n];
     let max_rows = (GLOBAL_BUDGET / n.max(1)).max(dmax + 1);
     let mut out = vec![lengths::LenOut::default(); k];
     let mut grow = vec![u32::MAX; n];
@@ -307,6 +330,28 @@ fn len_run<F: lengths::Prod<D>, D: lengths::Dist>(
                 if grow[v] == u32::MAX {
                     grow[v] = srcs.len() as u32;
                     srcs.push(v as u32);
+                    radius[v] = D::ZERO;
+                }
+            }
+            let (a, b) = blocks[bi];
+            let mut reach = longest[u];
+            for x in a..b {
+                let e = idv[x] as usize;
+                let v = ev[2 * e + 1] as usize;
+                let lv = (g.lo(u)..g.hi(u)).find(|&q| g.at(q) == v).map(|q| lens[q]).unwrap_or(D::ZERO);
+                let cand = lv + longest[v];
+                if cand > reach {
+                    reach = cand;
+                }
+            }
+            if reach > radius[u] {
+                radius[u] = reach;
+            }
+            for q in g.lo(u)..g.hi(u) {
+                let sv = g.at(q);
+                let cand = lens[q] + reach;
+                if cand > radius[sv] {
+                    radius[sv] = cand;
                 }
             }
             bi += 1;
@@ -317,8 +362,9 @@ fn len_run<F: lengths::Prod<D>, D: lengths::Dist>(
         let row_job = |si: usize, row: &mut [D]| {
             let t = rayon::current_thread_index().unwrap_or(0) % dws.len();
             let mut guard = dws[t].lock().unwrap();
-            let ws = guard.get_or_insert_with(|| lengths::DijWs::new(n));
-            lengths::full_dijkstra(g, lens, srcs[si] as usize, row, ws);
+            let ws = guard.get_or_insert_with(|| lengths::DijWs::new(n, bq.clone()));
+            let sv = srcs[si] as usize;
+            lengths::full_dijkstra(g.indptr, &nbr, lens, sv, radius[sv], row, ws);
         };
         match &pool {
             Some(p) => p.install(|| mat.par_chunks_mut(n).enumerate().for_each(|(si, row)| row_job(si, row))),
@@ -329,7 +375,7 @@ fn len_run<F: lengths::Prod<D>, D: lengths::Dist>(
         let edge_job = |c: usize, chunk: &mut [lengths::LenOut]| {
             let t = rayon::current_thread_index().unwrap_or(0) % lws.len();
             let mut guard = lws[t].lock().unwrap();
-            let ws = guard.get_or_insert_with(|| lengths::LenWs::<F, D>::new(n));
+            let ws = guard.get_or_insert_with(make_ws);
             for (o, slot) in chunk.iter_mut().enumerate() {
                 let e = idv[pa + c * BLOCK + o] as usize;
                 *slot = ws.edge_global(g, meas, ev[2 * e] as usize, ev[2 * e + 1] as usize, mat_r, grow_r);

@@ -15,7 +15,7 @@ whose costs differ by a constant.
 integers floor(length * 10^k), the metric is integral again and the result is an exact fraction.
 Every length decreases by less than 10^-k, so every distance decreases by a factor of at most
 1 - 10^-k / (smallest length), and W1 and d(i, j) with it. Truncation buys exactness, not speed:
-on the graphs we timed, 5 digits ran 1.1-1.2x faster than full precision and 1 digit up to 1.4x.
+on the graphs we timed, 5 digits ran 1.0-1.1x faster than full precision and 1 digit up to 1.3x.
 """
 from __future__ import annotations
 
