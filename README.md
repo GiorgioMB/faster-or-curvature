@@ -56,10 +56,11 @@ from source needs a Rust toolchain: `pip install -e ".[dev]"`, then `pytest -q`.
 
 ## Versions
 
-1.3.0 adds the native backend, real walk weights and edge lengths. 1.2.0 contains the solver of
-orcut 1.4.4, the version described in *The Min-Cut Formulation of Ollivier–Ricci Curvature*; 1.2.1
-and 1.2.2 change documentation only. The kernel of 1.0.0 is kept unchanged in `orcut/_kernels.py`
-(`orcut.exact`). Details: [CHANGELOG.md](CHANGELOG.md).
+1.3.0 adds the native backend, real walk weights and edge lengths; 1.3.1 changes no result. 1.2.2
+is the version described in *The Min-Cut Formulation of Ollivier–Ricci Curvature*: it contains the
+solver of orcut 1.4.4, as do 1.2.0 and 1.2.1, which differ from it in documentation only. The kernel
+of 1.0.0 is kept unchanged in `orcut/_kernels.py` (`orcut.exact`). Details:
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Layout
 
@@ -83,9 +84,9 @@ and 1.2.2 change documentation only. The kernel of 1.0.0 is kept unchanged in `o
   author       = {Giorgio Micaletto},
   title        = {faster-or-curvature: Exact Ollivier--Ricci curvature in exact integer arithmetic},
   year         = {2026},
-  version      = {1.2.0},
+  version      = {1.2.2},
   howpublished = {\url{https://github.com/GiorgioMB/faster-or-curvature}},
-  note         = {Version 1.2.0, described in ``The Min-Cut Formulation of Ollivier--Ricci Curvature''},
+  note         = {Version 1.2.2, described in ``The Min-Cut Formulation of Ollivier--Ricci Curvature''},
 }
 ```
 

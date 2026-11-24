@@ -1,14 +1,14 @@
 cff-version: 1.2.0
 message: >-
-  If you use this software, please cite it as below. Version 1.2.0 is the version described in
+  If you use this software, please cite it as below. Version 1.2.2 is the version described in
   "The Min-Cut Formulation of Ollivier-Ricci Curvature" (arXiv, forthcoming).
 type: software
 title: "faster-or-curvature: Exact Ollivier-Ricci curvature in exact integer arithmetic"
 authors:
   - family-names: Micaletto
     given-names: Giorgio
-version: 1.2.0
-date-released: "2026-10-30"
+version: 1.2.2
+date-released: "2026-11-16"
 license: MIT
 repository-code: "https://github.com/GiorgioMB/faster-or-curvature"
 url: "https://pypi.org/project/faster-or-curvature/"

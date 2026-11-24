@@ -24,4 +24,4 @@ from ._kernels import N_EXACT, exact_ids, exact_or_ids
 __all__ = ["Graph", "as_graph", "curvature", "ball_curvature", "walk_curvature", "certify", "Certificate", "Walk",
            "affected_edges", "edge_values", "truncate_lengths", "native_available",
            "exact", "exact_ids", "exact_or_ids", "N_EXACT"]
-__version__ = "1.3.0"
+__version__ = "1.3.1"

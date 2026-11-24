@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1
+
+- No change in results. The citation names 1.2.2, the version of *The Min-Cut Formulation of
+  Ollivier–Ricci Curvature* (1.2.0 and 1.2.1 have the same code); a shorter README and changelog;
+  the native backend without its private developer hooks (`_prof`, `_prof_get`, `_transport`); the
+  length solver described as the network simplex it is.
+
 ## 1.3.0
 
 - Native backend `orcut._native` (Rust, PyO3, rayon): a port of the one-step kernel of
