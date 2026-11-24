@@ -5,28 +5,19 @@
 [![License](https://img.shields.io/pypi/l/faster-or-curvature.svg)](https://pypi.org/project/faster-or-curvature/)
 
 Exact Ollivier–Ricci curvature of every edge of a graph, with one minimum cut per edge, in exact
-integer arithmetic and without a distance matrix; also for weighted walks and for edge lengths.
-A native backend (Rust) computes it with no JIT warm-up, on all cores.
+integer arithmetic and without a distance matrix; also for weighted walks and edge lengths. A native
+backend (Rust) computes it on all cores with no JIT warm-up.
 
 ```bash
 pip install faster-or-curvature        # imports as orcut
 ```
 
-Any two vertices of the closed neighbourhoods of an edge are at distance at most
-three, so the Kantorovich dual of the edgewise transport problem has an integral
-optimum with potentials in {0, 1, 2, 3}. Written in unary, it is a maximum-weight
-closure, solved by one s–t minimum cut. Its arcs come from adjacency and common
-neighbours only (pairs at distance three give none), and with one relay node per
-common neighbour the network is linear in the adjacency lists of the vertices that
-carry net mass. The same holds for any one-step measures (lazy, non-lazy, any idleness,
-weighted walks), and, with 2r layers, for measures supported on balls of radius r.
-
 ```python
 import orcut
 g = orcut.Graph.from_edges([(0, 1), (1, 2), (2, 0), (2, 3)])  # or a networkx graph / PyG Data
 orcut.curvature(g)                      # lazy (idleness 1/(deg+1)), aligned with g.edges (u < v)
-orcut.curvature(g, "lly")               # Lin–Lu–Yau; also "nonlazy", a number p (idleness p),
-orcut.curvature(g, orcut.Walk(weights=w, idleness=0.5))   # or a weighted walk (any positive weights)
+orcut.curvature(g, "lly")               # Lin–Lu–Yau; also "nonlazy", or a number p (idleness p)
+orcut.curvature(g, orcut.Walk(weights=w, idleness=0.5))   # a weighted walk (any positive weights)
 orcut.curvature(g, exact_fraction=True) # also W1 as an exact integer fraction per edge
 c = orcut.certify(g, (0, 1))            # an optimal plan and an optimal 1-Lipschitz potential
 c.verified, c.verify(g)                 # checked exactly when built, and re-checkable from scratch
@@ -38,44 +29,14 @@ orcut.curvature(g, lengths=l, truncation=3)  # real lengths, 3 decimals kept: ex
 orcut.curvature(G, lengths="weight")    # with a networkx graph, an edge attribute name
 ```
 
-## Weighted graphs
-
-*Walk weights* (conductances: m_u(x) proportional to w(u, x)) leave the metric alone, so the cut
-is the same and the weights only enter as capacities: integer weights are exact, real weights run
-in floating point (native backend), and neither needs truncation. `Walk(weights=w,
-idleness="lly")` is the Lin–Lu–Yau curvature of the walk, computed as twice the curvature at
-idleness 1/2: kappa_p is linear in p on [1/2, 1) for every walk and every metric (replacing an
-optimal potential f by min(f, f(j) - eps + d(., j)) changes the objective by (2p - 1) eps >= 0),
-which the tests check exactly against the 1/(deg_max + 1) route of unweighted graphs.
-
-*Edge lengths* change the metric. With integer lengths the Kantorovich dual keeps an integral
-optimum, with potentials in {0, ..., D} for D the largest distance between the supports, so the
-transport problem is still one minimum cut, on D - 1 layers (the layered closure of
-`orcut._layered`, which the tests match exactly). Real lengths have no integral optimum. The
-native solver computes the distances between the vertices of positive and negative net mass by
-Dijkstras that stop at their targets (shared by every edge of a run with a common endpoint, or,
-when the graph is a small world, one radius-bounded single-source search per vertex shared by all
-edges; bucket queues narrower than the shortest edge, so every vertex popped is final, with a radix
-heap when lengths span more than a factor 8192), merges the rows and columns whose costs differ by
-a constant (paying the constant exactly), and solves the reduced transportation problem by a
-network simplex (strongly feasible starting basis and trees, LEMON's spanning-tree structure,
-vectorized pricing by rows): exactly (i64, i128) with integer lengths, in floating point otherwise
-(checked against linear programming). On the same cost matrices this transport step is 1.5–1.9x
-faster than POT's network simplex on the largest problems of the networks below, and 30–40x on
-small ones.
-
-`truncation=k` keeps k decimal digits of every real length and drops the rest: the lengths become
-the integers floor(length * 10^k), the result is an exact fraction of the truncated metric, and
-every distance shrinks by a factor of at most 1 - 10^-k / (smallest length). It buys exactness
-rather than speed: 1.0–1.1x at k = 5 and up to 1.3x at k = 1 on the graphs below. Seconds on one
-core (lazy measure; lengths uniform in [0.5, 2], or Euclidean for the geometric graph):
-
-| graph | edges | hop metric | real lengths | truncation=5 | truncation=1 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Barabási–Albert, n = 2000, m = 4 | 7984 | 0.11 | 0.63 | 0.57 | 0.49 |
-| Barabási–Albert, n = 4000, m = 4 | 15984 | 0.14 | 1.85 | 1.83 | 1.70 |
-| powerlaw cluster, n = 4000 | 15978 | 0.16 | 1.81 | 1.71 | 1.66 |
-| random geometric, n = 3000 | 17129 | 0.12 | 0.38 | 0.38 | – |
+Any two vertices of the closed neighbourhoods of an edge are at distance at most three, so the
+Kantorovich dual of its transport problem has an integral optimum with potentials in {0, 1, 2, 3}:
+in unary, a maximum-weight closure, solved by one minimum cut whose arcs come from adjacency and
+common neighbours only. *Walk weights* only change the capacities of that cut: integer weights are
+exact, real weights run in floating point. *Integer edge lengths* keep an integral optimum, so the
+transport problem is still one minimum cut, on D − 1 layers; with real lengths, each edge's
+transport problem is solved by a network simplex in floating point (`truncation=k` keeps k decimal
+digits and is exact on the truncated metric).
 
 Against GraphRicciCurvature 0.6.1 (exact transport, `method="OTD"`, one process) on real weighted
 networks, with the same values to 1e-13 on every edge (seconds on one core; lazy walk with idleness
@@ -87,90 +48,35 @@ networks, with the same values to 1e-13 on every edge (seconds on one core; lazy
 | OpenFlights airports, 6 nearest neighbours (km) | 11636 | uniform / heat | 0.16 / 0.17 | 3.7 / 3.9 |
 | OpenFlights routes (great-circle km) | 18833 | uniform | 5.4 | 14.0 |
 
-## Native backend
-
-`orcut._native` is a Rust (PyO3, rayon) port of the general one-step kernel of `orcut._core`: the
-same bitsets, hubs, twin merging, fast path, witness relays and warm start, and the linear-size
-witness network for the edges it dispatches. W1 is unique, so it returns the same exact fractions
-and the same float values as the numba kernel, bit for bit, and it also picks the same network for
-every edge (tested on every graph and measure of the suite). There is no JIT: the first call in a
-fresh environment takes about 0.1 s instead of about a minute of numba compilation. Per thread, on
-one core (lazy measure, seconds):
-
-| graph | edges | numba | native | speedup |
-| --- | ---: | ---: | ---: | ---: |
-| Barabási–Albert, n = 20000, m = 5 | 99975 | 1.60 | 0.95 | 1.68x |
-| powerlaw cluster, n = 20000 | 99944 | 2.27 | 1.78 | 1.27x |
-| Watts–Strogatz, n = 20000, k = 10 | 100000 | 0.63 | 0.38 | 1.65x |
-| random geometric, n = 10000 | 137691 | 4.06 | 3.29 | 1.23x |
-| G(n, p), n = 5000, mean degree 20 | 49857 | 0.89 | 0.63 | 1.41x |
-| grid 150 x 150 | 44700 | 0.14 | 0.03 | 4.37x |
-
-`orcut.curvature(..., backend="auto")` uses it whenever it is installed, except for `diagnostics`
-and ablation `flags`, which belong to the numba kernel; `backend="native"` or `"numba"` forces
-one. Numba stays for the frozen 1.0.0 kernel, certificates, ball and multi-step measures,
-diagnostics and ablations.
-
-## Installation
-
-Python 3.10 or later; numpy and numba come with it. PyPI has wheels with the native backend for
-Linux (x86_64, aarch64), macOS (universal2) and Windows (x64), one per platform for every Python
-from 3.10 (abi3). Building from source (the sdist, or a clone) needs a Rust toolchain
-([rustup](https://rustup.rs)): from a clone, `pip install -e ".[dev]"` builds the extension and adds
-what the tests need (pytest, networkx, scipy), and `pytest -q` runs them.
-
-Without a package index (for example on a cluster without PyPI access), copy the wheel for the
-cluster's platform over from a machine that has PyPI:
-
-```bash
-pip download faster-or-curvature --no-deps --only-binary=:all: \
-    --platform manylinux2014_x86_64 --python-version 3.12 -d wheels/   # where PyPI is reachable
-conda install -c conda-forge "numpy>=2.2" "numba>=0.62"                  # on the cluster
-pip install --no-index --no-deps wheels/faster_or_curvature-*.whl
-```
+The native backend (`orcut._native`) is a port of the numba kernel of `orcut._core` and returns the
+same values bit for bit; `backend="auto"` uses it when installed, except for `diagnostics` and the
+ablation `flags` of the numba kernel, which also computes certificates, ball and multi-step measures,
+and the frozen 1.0.0 kernel. PyPI has wheels for Linux, macOS and Windows (Python ≥ 3.10); building
+from source needs a Rust toolchain: `pip install -e ".[dev]"`, then `pytest -q`.
 
 ## Versions
 
-* **1.3.0**: the native backend (Rust, bit for bit the numba kernel, no JIT), real walk weights,
-  Lin–Lu–Yau for weighted walks, and edge lengths (exact with integer lengths, `truncation` for
-  real ones). Values on the hop metric unchanged (tested).
-* **1.2.0** is the version described in *The Min-Cut Formulation of Ollivier–Ricci Curvature*
-  (Giorgio Micaletto, arXiv, forthcoming); `pip install faster-or-curvature==1.2.0` reproduces it.
-  It adds witness relays (one zero-weight relay per common neighbour) for the pairs at distance 2
-  that the bitset network would list one by one, chosen per edge when the network gets smaller, and a
-  bound on the bitset work (four words per adjacency entry) beyond which an edge is solved on the
-  linear-size witness network (`orcut._witness`, also usable on its own). Values
-  unchanged (tested). 1.2.1 and 1.2.2 change documentation only.
-* **1.1.0**: `orcut.curvature` (any one-step measure, exact fractions, diagnostics, ablation
-  flags), certificates (`orcut.certify`), the layered closure for supports of radius r
-  (`ball_curvature`, `walk_curvature`), and exact incremental updates (`affected_edges`). The kernel of 1.0.0 is kept unchanged in
-  `orcut/_kernels.py`, and `orcut.curvature` returns the same values bit for bit (tested).
-* **1.0.0** is the solver used for every exact curvature in Micaletto and Nigrelli,
-  *From Proxy to Certificate: Two-Sided Ollivier–Ricci Bounds from Balanced Forman Curvature*:
-  its compiled kernels (`orcut/_kernels.py`) are those of `curvature_transfer`.
+1.3.0 adds the native backend, real walk weights and edge lengths. 1.2.0 contains the solver of
+orcut 1.4.4, the version described in *The Min-Cut Formulation of Ollivier–Ricci Curvature*; 1.2.1
+and 1.2.2 change documentation only. The kernel of 1.0.0 is kept unchanged in `orcut/_kernels.py`
+(`orcut.exact`). Details: [CHANGELOG.md](CHANGELOG.md).
 
 ## Layout
 
 | Path | Contents |
 | --- | --- |
-| `orcut/graph.py` | CSR graph, canonical undirected edges, networkx / PyG / edge-list constructors |
-| `orcut/_kernels.py` | the 1.0.0 kernel (frozen): lazy, non-lazy, LLY, and the TLW certificate |
-| `orcut/_core.py` | the general one-step kernel: per-vertex masses, bitsets, relays, witness relays, ablation flags, diagnostics |
-| `orcut/_witness.py` | the linear-size witness network on its own (one relay per common neighbour; no bitsets, no distances) |
-| `orcut/_layered.py` | W1 on bounded integer metrics by a layered closure; ball and multi-step measures; certificates |
-| `orcut/measures.py` | measure specifications (`"lazy"`, `"nonlazy"`, `"lly"`, idleness p, `Walk` with integer or real weights) |
-| `orcut/weighted.py` | edge lengths: `truncate_lengths`, `edge_values` (networkx attributes), the solver's front end |
-| `orcut/_backend.py` | the native backend: availability, threads, calls into `orcut._native` |
-| `src/` | the native backend in Rust: `hop.rs` (port of `_core`), `lengths.rs` (edge lengths), `flow.rs` (Dinic), `nbhd.rs` (neighbourhoods, masses), `lib.rs` (bindings, threads) |
-| `orcut/certify.py` | per-edge certificates (plan and potential) and their exact verification |
-| `orcut/_reference.py` | independent oracle: full local distance matrix, three-level closure, recursive Dinic |
-| `orcut/api.py` | `curvature` (measures, lengths, truncation, backend), `ball_curvature`, `walk_curvature`, `affected_edges`, `exact` (1.0.0 API), thread control |
-| `tests/` | kernels against each other (bit for bit), against the oracle, and against linear programming |
+| `orcut/_core.py` | the one-step kernel: bitsets, relays, witness relays, twin merging, warm-started Dinic |
+| `orcut/_witness.py` | the linear-size witness network (one relay per common neighbour) |
+| `orcut/_layered.py` | W1 on bounded integer metrics by a layered closure: balls, multi-step walks |
+| `orcut/certify.py` | certificates (an optimal plan and potential), checked exactly |
+| `orcut/weighted.py`, `_backend.py` | edge lengths; the calls into the native backend |
+| `orcut/_kernels.py` | the 1.0.0 kernel, frozen |
+| `orcut/_reference.py` | the oracle: explicit distances, three-level closure, its own max flow |
+| `orcut/api.py`, `graph.py`, `measures.py` | entry points, CSR graphs, measures |
+| `src/` | the native backend: `hop.rs` (port of `_core`), `lengths.rs`, `flow.rs`, `nbhd.rs`, `lib.rs` |
+| `tests/` | kernels against each other (bit for bit), the oracle and linear programming |
 
 ## Citation
-
-Version 1.2.0 is the version described in *The Min-Cut Formulation of Ollivier–Ricci Curvature*
-(Giorgio Micaletto), which will appear on arXiv. Until then, please cite the software:
 
 ```bibtex
 @misc{faster-or-curvature,
@@ -183,18 +89,4 @@ Version 1.2.0 is the version described in *The Min-Cut Formulation of Ollivier�
 }
 ```
 
-GitHub's "Cite this repository" button gives the same entry, from `CITATION.cff`.
-<!--
-When the paper is on arXiv, replace the entry above with the preprint (and fill in the
-preferred-citation block at the end of CITATION.cff):
-
-@misc{micaletto2026mincut,
-  author        = {Giorgio Micaletto},
-  title         = {The Min-Cut Formulation of {Ollivier--Ricci} Curvature},
-  year          = {2026},
-  eprint        = {XXXX.XXXXX},
-  archivePrefix = {arXiv},
-}
-
-and, once the conference version is out, with @inproceedings{..., booktitle = {...}, pages = {...}}.
--->
+GitHub's "Cite this repository" gives the same entry, from `CITATION.cff`.

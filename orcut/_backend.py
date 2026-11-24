@@ -56,8 +56,9 @@ def hop(g, ids, spec, nthreads):
 
 
 def lengths(g, ids, spec, lens, integral, nthreads):
-    """(curvature, W1 numerator, denominator, integer distance, W1, distance, phases) for edge
-    lengths aligned with ``g.indices`` (int64 if ``integral``, else float64)."""
+    """(curvature, W1 numerator, denominator, integer distance, W1, distance, network-simplex pivots,
+    rows, columns) per edge, for lengths aligned with ``g.indices`` (int64 if ``integral``, else
+    float64)."""
     t, f = _tabs(spec)
     li = np.ascontiguousarray(lens, dtype=np.int64) if integral else _I
     lf = _F if integral else np.ascontiguousarray(lens, dtype=np.float64)

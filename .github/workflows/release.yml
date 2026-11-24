@@ -1,7 +1,5 @@
-# Builds the wheels (native backend, abi3: one per platform for every Python >= 3.10) and the sdist
-# on every push to main and every pull request, and tests the installed wheels outside the
-# checkout. A pushed tag vX.Y.Z also publishes faster-or-curvature X.Y.Z to PyPI (trusted
-# publishing: no tokens), once everything has passed.
+# Wheels (abi3) and the sdist on every push and pull request, tested outside the checkout; a tag
+# vX.Y.Z also publishes faster-or-curvature X.Y.Z to PyPI (trusted publishing) once all have passed.
 name: release
 
 on:

@@ -13,29 +13,6 @@
 use crate::nbhd::{Mass, Meas, Nbhd};
 use crate::Graph;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::Instant;
-
-/// Developer profiling (``orcut._native._prof``): nanoseconds in distance searches and in solves.
-pub static PROF: AtomicBool = AtomicBool::new(false);
-pub static T_DIST: AtomicU64 = AtomicU64::new(0);
-pub static T_SOLVE: AtomicU64 = AtomicU64::new(0);
-
-#[inline]
-fn prof_start() -> Option<Instant> {
-    if PROF.load(Ordering::Relaxed) {
-        Some(Instant::now())
-    } else {
-        None
-    }
-}
-
-#[inline]
-fn prof_add(c: &AtomicU64, t: Option<Instant>) {
-    if let Some(t) = t {
-        c.fetch_add(t.elapsed().as_nanos() as u64, Ordering::Relaxed);
-    }
-}
 
 pub trait Dist:
     Copy + Default + PartialOrd + Add<Output = Self> + Sub<Output = Self> + AddAssign + SubAssign + Send + Sync + 'static
@@ -466,7 +443,6 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
 
     /// Dijkstra from s until the nt targets (tst == tep) are settled; row ``row`` of ``mat``.
     fn dij_targets(&mut self, g: &Graph, lens: &[D], s: usize, nt: usize, row: usize) {
-        let t0 = prof_start();
         let dep = self.next_dep();
         let tep = self.tep;
         self.dst[s] = dep;
@@ -505,7 +481,6 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
                 }
             }
             self.bq = Some(bq);
-            prof_add(&T_DIST, t0);
             return;
         }
         self.rheap.clear();
@@ -538,12 +513,10 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
                 }
             }
         }
-        prof_add(&T_DIST, t0);
     }
 
     /// d(i, j), at most ``bound`` (the length of the edge).
     fn pair_dist(&mut self, g: &Graph, lens: &[D], i: usize, j: usize, bound: D) -> D {
-        let t0 = prof_start();
         let dep = self.next_dep();
         self.rheap.clear();
         self.dst[i] = dep;
@@ -557,7 +530,6 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
             }
             self.fin[w] = dep;
             if w == j {
-                prof_add(&T_DIST, t0);
                 return d;
             }
             for e in g.lo(w)..g.hi(w) {
@@ -573,7 +545,6 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
                 }
             }
         }
-        prof_add(&T_DIST, t0);
         bound
     }
 
@@ -684,27 +655,6 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
         self.solve(l, dij)
     }
 
-    /// The transport step alone on a dense r x c cost matrix (row merging, column merging, network
-    /// simplex): (W1, pivots). For benchmarks (``orcut._native._transport``).
-    pub fn transport_dense(&mut self, cost: &[D], a: &[F], b: &[F], r: usize, c: usize) -> (f64, i32) {
-        self.px.clear();
-        self.pm.clear();
-        self.ny.clear();
-        self.nm.clear();
-        for x in 0..r {
-            self.px.push(x as u32);
-            self.pm.push(a[x]);
-        }
-        for y in 0..c {
-            self.ny.push(y as u32);
-            self.nm.push(b[y]);
-        }
-        self.cmat.clear();
-        self.cmat.extend_from_slice(&cost[..r * c]);
-        let out = self.solve(1, D::MAXV);
-        (out.w1, out.aug)
-    }
-
     /// The edges ``ids`` (all with first endpoint u = ev[2 ids[0]]), into ``out``.
     pub fn block(&mut self, g: &Graph, lens: &[D], m: &Meas, ev: &[i64], ids: &[i64], out: &mut [LenOut]) {
         let k = ids.len();
@@ -781,7 +731,6 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
 
     /// Merge rows and columns that differ by a constant, then solve the transportation problem.
     fn solve(&mut self, l: i64, dij: D) -> LenOut {
-        let t0 = prof_start();
         let (r, c) = (self.px.len(), self.ny.len());
         let mut cost = <F as Prod<D>>::Acc::default();
         let (mut aug, mut nr2, mut nc2) = (0i32, 0usize, 0usize);
@@ -864,7 +813,6 @@ impl<F: Prod<D>, D: Dist> LenWs<F, D> {
         } else {
             (1.0 - w1 / df, -1, 0, if D::EXACT { dij.to_i64() } else { 0 })
         };
-        prof_add(&T_SOLVE, t0);
         LenOut { val, num, den, dist_i, w1, dist: df, aug, rows: nr2 as i32, cols: nc2 as i32 }
     }
 
@@ -1307,7 +1255,6 @@ impl<D: Dist> DijWs<D> {
 /// CSR indices; ``check`` in lib.rs has validated ``indptr`` and the indices, so the hot loop skips
 /// bounds checks.
 pub fn full_dijkstra<D: Dist>(indptr: &[i64], nbr: &[u32], lens: &[D], s: usize, radius: D, row: &mut [D], ws: &mut DijWs<D>) {
-    let t0 = prof_start();
     let ep = bump(&mut ws.ep, &mut ws.fin);
     row[s] = D::ZERO;
     let n = row.len();
@@ -1340,7 +1287,6 @@ pub fn full_dijkstra<D: Dist>(indptr: &[i64], nbr: &[u32], lens: &[D], s: usize,
                 }
             }
         }
-        prof_add(&T_DIST, t0);
         return;
     }
     ws.heap.clear();
@@ -1373,7 +1319,6 @@ pub fn full_dijkstra<D: Dist>(indptr: &[i64], nbr: &[u32], lens: &[D], s: usize,
             }
         }
     }
-    prof_add(&T_DIST, t0);
 }
 
 // The network simplex above follows LEMON (https://lemon.cs.elte.hu), via POT's

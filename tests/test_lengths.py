@@ -90,7 +90,7 @@ def test_unit_lengths_reproduce_the_hop_kernel(G):
 @pytest.mark.parametrize("seed", range(3))
 def test_integer_lengths_match_the_layered_min_cut(seed):
     """The min-cut formulation with D - 1 layers (orcut._layered, explicit distances) and the
-    primal-dual solver give the same exact W1 on integer lengths."""
+    native solver give the same exact W1 on integer lengths."""
     rng = np.random.default_rng(seed)
     G, g = _g(nx.powerlaw_cluster_graph(60, 3, 0.4, seed=seed))
     lens = rng.integers(1, 5, g.num_edges)
