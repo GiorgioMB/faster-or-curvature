@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- The kernel kept frozen since the first release (`orcut/_kernels.py`) is removed, with its
+  interface (`orcut.exact`, `exact_ids`, `exact_or_ids`, `N_EXACT`, the screening and TLW drivers):
+  use `orcut.curvature(g)`, `orcut.curvature(g, "nonlazy")` and `orcut.curvature(g, "lly")`, which
+  return the same values. The primitives the kernels share (constants, arenas, bitsets, CSR
+  networks, Dinic, row deduplication) move unchanged to `orcut/_flow.py`. No change in results.
+- The oracle is `orcut._oracle` (`exact_ids_oracle`), formerly `orcut._reference`; the tests check
+  `orcut._core` against it bit for bit, under every ablation flag.
+
 ## 1.3.1
 
 - No change in results. The citation names 1.2.2, the version of *The Min-Cut Formulation of
@@ -26,7 +36,7 @@
 ## 1.2.2, 1.2.1
 
 - Documentation only: citation (`CITATION.cff`), badges, the new title of the paper of Micaletto and
-  Nigrelli in the README and in the docstring of `orcut/_kernels.py`.
+  Nigrelli in the README.
 
 ## 1.2.0
 
@@ -42,9 +52,4 @@
 - `orcut.curvature` for any one-step measure (lazy, non-lazy, LLY, idleness p, `orcut.Walk`), exact
   fractions, diagnostics and ablation flags; `orcut.certify` and `Certificate.verify`;
   `ball_curvature` and `walk_curvature` (layered closure); `affected_edges` for exact incremental
-  updates. The new kernel matches the frozen 1.0.0 kernel bit for bit (tested).
-
-## 1.0.0
-
-- The exact solver of `curvature_transfer` v11 (the code of Micaletto and Nigrelli, *From Proxy to
-  Certificate*), extracted without changes (`orcut/_kernels.py`, `orcut/_reference.py`).
+  updates.

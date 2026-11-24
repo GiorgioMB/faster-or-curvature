@@ -41,7 +41,7 @@ fn low_mask(n: usize, x: usize) -> u64 {
     }
 }
 
-/// Group equal rows of a (nrows, kw) key matrix (as `orcut._kernels._dedupe`).
+/// Group equal rows of a (nrows, kw) key matrix (as `orcut._flow._dedupe`).
 fn dedupe(keys: &[u64], nrows: usize, kw: usize, table: &mut Vec<i32>, gid: &mut Vec<u32>, leader: &mut Vec<u32>) -> usize {
     let mut tsize = 4usize;
     while tsize < 2 * nrows {

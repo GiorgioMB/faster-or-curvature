@@ -2,8 +2,8 @@
 
 It computes the same exact values as the numba kernel of :mod:`orcut._core` (bit for bit, tested)
 with no JIT compilation, on all cores without the GIL, and adds float masses (real walk weights)
-and edge lengths (:mod:`orcut.weighted`). The numba kernels stay for the frozen 1.0.0 solver,
-certificates, ball and multi-step measures, diagnostics and ablation flags.
+and edge lengths (:mod:`orcut.weighted`). The numba kernels stay for certificates, ball and
+multi-step measures, diagnostics and ablation flags.
 """
 from __future__ import annotations
 

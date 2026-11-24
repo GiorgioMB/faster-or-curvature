@@ -1,10 +1,11 @@
-"""Reference exact solver (the previous implementation), kept as a test oracle.
+"""The oracle: an independent exact solver on explicit local distance matrices, used only to check
+the production solver.
 
 For an edge (i, j) it builds the full local distance matrix on S = N(i) u N(j)
 (entries in {0, 1, 2, 3}, from adjacency and 2-paths), merges twin vertices,
 and solves the Kantorovich dual as a maximum-weight closure on three levels
 per vertex (one s-t min cut, recursive Dinic). It is exact and independent of
-the production solver in :mod:`orcut._kernels` (different
+the production solver in :mod:`orcut._core` (different
 formulation, different distance computation, different max-flow code), and it
 is verified against linear programming in the tests; the tests check that the
 two solvers return identical values. It is slower, and it is not used by the
@@ -450,7 +451,7 @@ def exact_one(indptr, indices, i, j, want_or, want_or0, want_lly, scratch, epoch
 
 
 @njit(cache=True, parallel=True)
-def exact_ids_reference(indptr, indices, edges, ids, want_or, want_or0, want_lly, nchunks):
+def exact_ids_oracle(indptr, indices, edges, ids, want_or, want_or0, want_lly, nchunks):
     """Exact curvatures for edges[ids], parallel over chunks; each chunk owns
     an O(n) scratch space."""
     n = indptr.shape[0] - 1

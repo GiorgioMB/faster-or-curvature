@@ -1,4 +1,4 @@
-//! Maximum flow (Dinic, as `orcut._kernels._dinic`) on a CSR residual network, generic over the
+//! Maximum flow (Dinic, as `orcut._flow._dinic`) on a CSR residual network, generic over the
 //! capacity type: `i64` for exact integer masses, `f64` for real masses.
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 

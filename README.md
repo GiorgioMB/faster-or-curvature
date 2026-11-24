@@ -50,16 +50,15 @@ networks, with the same values to 1e-13 on every edge (seconds on one core; lazy
 
 The native backend (`orcut._native`) is a port of the numba kernel of `orcut._core` and returns the
 same values bit for bit; `backend="auto"` uses it when installed, except for `diagnostics` and the
-ablation `flags` of the numba kernel, which also computes certificates, ball and multi-step measures,
-and the frozen 1.0.0 kernel. PyPI has wheels for Linux, macOS and Windows (Python ≥ 3.10); building
+ablation `flags` of the numba kernel, which also computes certificates and ball and multi-step
+measures. PyPI has wheels for Linux, macOS and Windows (Python ≥ 3.10); building
 from source needs a Rust toolchain: `pip install -e ".[dev]"`, then `pytest -q`.
 
 ## Versions
 
 1.3.0 adds the native backend, real walk weights and edge lengths; 1.3.1 changes no result. 1.2.2
 is the version described in *The Min-Cut Formulation of Ollivier–Ricci Curvature*: it contains the
-solver of orcut 1.4.4, as do 1.2.0 and 1.2.1, which differ from it in documentation only. The kernel
-of 1.0.0 is kept unchanged in `orcut/_kernels.py` (`orcut.exact`). Details:
+solver of orcut 1.4.4, as do 1.2.0 and 1.2.1, which differ from it in documentation only. Details:
 [CHANGELOG.md](CHANGELOG.md).
 
 ## Layout
@@ -71,8 +70,8 @@ of 1.0.0 is kept unchanged in `orcut/_kernels.py` (`orcut.exact`). Details:
 | `orcut/_layered.py` | W1 on bounded integer metrics by a layered closure: balls, multi-step walks |
 | `orcut/certify.py` | certificates (an optimal plan and potential), checked exactly |
 | `orcut/weighted.py`, `_backend.py` | edge lengths; the calls into the native backend |
-| `orcut/_kernels.py` | the 1.0.0 kernel, frozen |
-| `orcut/_reference.py` | the oracle: explicit distances, three-level closure, its own max flow |
+| `orcut/_flow.py` | integer constants, arenas, bitsets, CSR networks and Dinic's maximum flow, shared by the kernels |
+| `orcut/_oracle.py` | the oracle: explicit distances, three-level closure, its own max flow |
 | `orcut/api.py`, `graph.py`, `measures.py` | entry points, CSR graphs, measures |
 | `src/` | the native backend: `hop.rs` (port of `_core`), `lengths.rs`, `flow.rs`, `nbhd.rs`, `lib.rs` |
 | `tests/` | kernels against each other (bit for bit), the oracle and linear programming |
