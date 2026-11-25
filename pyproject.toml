@@ -28,6 +28,7 @@ dev = ["pytest", "networkx>=3.3", "scipy"]
 Repository = "https://github.com/GiorgioMB/faster-or-curvature"
 Changelog = "https://github.com/GiorgioMB/faster-or-curvature/blob/main/CHANGELOG.md"
 Citation = "https://github.com/GiorgioMB/faster-or-curvature/blob/main/CITATION.cff"
+Paper = "https://arxiv.org/abs/2611.32528"
 
 [tool.maturin]
 module-name = "orcut._native"

@@ -85,8 +85,22 @@ solver of orcut 1.4.4, as do 1.2.0 and 1.2.1, which differ from it in documentat
   year         = {2026},
   version      = {1.2.2},
   howpublished = {\url{https://github.com/GiorgioMB/faster-or-curvature}},
-  note         = {Version 1.2.2, described in ``The Min-Cut Formulation of Ollivier--Ricci Curvature''},
+  note         = {Version 1.2.2, described in ``The Min-Cut Formulation of Ollivier--Ricci Curvature'' (arXiv:2611.32528)},
 }
 ```
 
-GitHub's "Cite this repository" gives the same entry, from `CITATION.cff`.
+GitHub's "Cite this repository" gives the same entry, from `CITATION.cff`. The paper
+([arXiv:2611.32528](https://arxiv.org/abs/2611.32528)):
+
+```bibtex
+@misc{micaletto2026mincut,
+  author        = {Giorgio Micaletto},
+  title         = {The Min-Cut Formulation of {Ollivier--Ricci} Curvature},
+  year          = {2026},
+  eprint        = {2611.32528},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.DS},
+  doi           = {10.48550/arXiv.2611.32528},
+  url           = {https://arxiv.org/abs/2611.32528},
+}
+```

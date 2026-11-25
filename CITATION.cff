@@ -1,7 +1,8 @@
 cff-version: 1.2.0
 message: >-
   If you use this software, please cite it as below. Version 1.2.2 is the version described in
-  "The Min-Cut Formulation of Ollivier-Ricci Curvature" (arXiv, forthcoming).
+  "The Min-Cut Formulation of Ollivier-Ricci Curvature" (arXiv:2611.32528); please cite the paper
+  too when you use its results (references).
 type: software
 title: "faster-or-curvature: Exact Ollivier-Ricci curvature in exact integer arithmetic"
 authors:
@@ -17,3 +18,16 @@ keywords:
   - optimal transport
   - minimum cut
   - graphs
+references:
+  - type: article
+    title: "The Min-Cut Formulation of Ollivier-Ricci Curvature"
+    authors:
+      - family-names: Micaletto
+        given-names: Giorgio
+    year: 2026
+    identifiers:
+      - type: doi
+        value: "10.48550/arXiv.2611.32528"
+      - type: url
+        value: "https://arxiv.org/abs/2611.32528"
+    repository: "arXiv"
