@@ -78,19 +78,8 @@ solver of orcut 1.4.4, as do 1.2.0 and 1.2.1, which differ from it in documentat
 
 ## Citation
 
-```bibtex
-@misc{faster-or-curvature,
-  author       = {Giorgio Micaletto},
-  title        = {faster-or-curvature: Exact Ollivier--Ricci curvature in exact integer arithmetic},
-  year         = {2026},
-  version      = {1.2.2},
-  howpublished = {\url{https://github.com/GiorgioMB/faster-or-curvature}},
-  note         = {Version 1.2.2, described in ``The Min-Cut Formulation of Ollivier--Ricci Curvature'' (arXiv:2611.32528)},
-}
-```
-
-GitHub's "Cite this repository" gives the same entry, from `CITATION.cff`. The paper
-([arXiv:2611.32528](https://arxiv.org/abs/2611.32528)):
+If you use faster-or-curvature, please cite the paper that describes it (version 1.2.2 is the version
+described there):
 
 ```bibtex
 @misc{micaletto2026mincut,
@@ -104,3 +93,5 @@ GitHub's "Cite this repository" gives the same entry, from `CITATION.cff`. The p
   url           = {https://arxiv.org/abs/2611.32528},
 }
 ```
+
+GitHub's "Cite this repository" points to the same paper, from `CITATION.cff`.
