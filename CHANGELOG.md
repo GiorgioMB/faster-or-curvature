@@ -1,14 +1,19 @@
 # Changelog
 
-## Unreleased
+## 1.3.2
 
-- The kernel kept frozen since the first release (`orcut/_kernels.py`) is removed, with its
-  interface (`orcut.exact`, `exact_ids`, `exact_or_ids`, `N_EXACT`, the screening and TLW drivers):
-  use `orcut.curvature(g)`, `orcut.curvature(g, "nonlazy")` and `orcut.curvature(g, "lly")`, which
-  return the same values. The primitives the kernels share (constants, arenas, bitsets, CSR
-  networks, Dinic, row deduplication) move unchanged to `orcut/_flow.py`. No change in results.
+- No change in results. The kernel kept frozen since the first release (`orcut/_kernels.py`) is
+  removed, with its interface (`orcut.exact`, `exact_ids`, `exact_or_ids`, `N_EXACT`, the screening
+  and TLW drivers): for `orcut.exact(g)["c_OR"]`, `["c_OR0"]` and `["c_LLY"]`, use
+  `orcut.curvature(g)`, `orcut.curvature(g, "nonlazy")` and `orcut.curvature(g, "lly")`, which
+  return the same values, bit for bit (`edges` and `n_jobs` work as before). The primitives the
+  kernels share (constants, arenas, bitsets, CSR networks, Dinic, row deduplication) move unchanged
+  to `orcut/_flow.py`.
 - The oracle is `orcut._oracle` (`exact_ids_oracle`), formerly `orcut._reference`; the tests check
   `orcut._core` against it bit for bit, under every ablation flag.
+- One citation, the paper (arXiv:2611.32528): the BibTeX entry of the README and the
+  `preferred-citation` of `CITATION.cff`, which GitHub's "Cite this repository" uses; a `Paper`
+  link among the project URLs.
 
 ## 1.3.1
 

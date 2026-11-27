@@ -56,10 +56,11 @@ from source needs a Rust toolchain: `pip install -e ".[dev]"`, then `pytest -q`.
 
 ## Versions
 
-1.3.0 adds the native backend, real walk weights and edge lengths; 1.3.1 changes no result. 1.2.2
-is the version described in *The Min-Cut Formulation of Ollivier–Ricci Curvature*: it contains the
-solver of orcut 1.4.4, as do 1.2.0 and 1.2.1, which differ from it in documentation only. Details:
-[CHANGELOG.md](CHANGELOG.md).
+1.3.0 adds the native backend, real walk weights and edge lengths; 1.3.1 changes no result, nor
+does 1.3.2, which removes `orcut.exact`, `exact_ids`, `exact_or_ids` and `N_EXACT` with the frozen
+kernel behind them (`orcut.curvature` returns the same values). 1.2.2 is the version described in
+*The Min-Cut Formulation of Ollivier–Ricci Curvature*: it contains the solver of orcut 1.4.4, as do
+1.2.0 and 1.2.1, which differ from it in documentation only. Details: [CHANGELOG.md](CHANGELOG.md).
 
 ## Layout
 

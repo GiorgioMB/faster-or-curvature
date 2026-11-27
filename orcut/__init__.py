@@ -21,4 +21,4 @@ from ._backend import available as native_available
 
 __all__ = ["Graph", "as_graph", "curvature", "ball_curvature", "walk_curvature", "certify", "Certificate", "Walk",
            "affected_edges", "edge_values", "truncate_lengths", "native_available"]
-__version__ = "1.3.1"
+__version__ = "1.3.2"
